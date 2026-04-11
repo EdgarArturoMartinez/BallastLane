@@ -70,3 +70,20 @@ Example start message for Copilot:
 
 ## Notes
 - Keep instructions short. Do not put secrets in this file.
+
+## EOD Update & Next-Session Checklist
+Follow this exact short EOD routine to make next-day resumption frictionless.
+
+EOD routine (must be completed before ending your work session):
+- Update `/docs/DAILY_CONTEXT.md` with a 6–12 line summary using the EOD template.
+- If you changed architecture or conventions, update `/memories/repo/project-conventions.md` with a one-line note and an incremental version.
+- Add a short checkpoint entry in `Arthur_Checkpoint_Exploration.md` describing decisions and blockers.
+- Commit and push all changes to your working branch.
+
+Next-session start steps (what to do when you return):
+1. Pull the latest branch: `git pull origin <branch>`.
+2. Open `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md` to load the agreed conventions and yesterday's context.
+3. Ask the agent: "Resume project using `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md`. Show a 5-line plan to continue." The agent will read those files and produce a focused plan.
+4. Run quick verification: `dotnet build` and `dotnet test` (or `docker-compose up --build -d` if using Docker). Report failures immediately in `DAILY_CONTEXT.md` and create a tiny ticket in your issue tracker.
+
+Keep this file short; updates should be additive and versioned with commits.
