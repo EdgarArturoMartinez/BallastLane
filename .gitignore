@@ -1,3 +1,9 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.venv/
 # Ignore everything
 *
 
