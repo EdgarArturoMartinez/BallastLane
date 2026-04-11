@@ -46,6 +46,10 @@ public sealed class Pbkdf2PasswordHasher : IPasswordHasher
 
     public bool Verify(string password, string salt, string hash)
     {
+        // Gracefully return false for empty input rather than throwing —
+        // a missing password can never match a stored hash.
+        if (string.IsNullOrEmpty(password)) return false;
+
         var expected = Hash(password, salt);
 
         // Constant-time comparison — prevents timing oracle attacks

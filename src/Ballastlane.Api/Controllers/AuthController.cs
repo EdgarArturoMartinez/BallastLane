@@ -1,5 +1,6 @@
 using Ballastlane.Application.DTOs;
 using Ballastlane.Application.Services;
+using Ballastlane.Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -36,11 +37,19 @@ public sealed class AuthController : ControllerBase
     /// <summary>Authenticates a user and returns a JWT token.</summary>
     [HttpPost("login")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
-        var response = await _authService.LoginAsync(request, ct);
-        return Ok(response);
+        try
+        {
+            var response = await _authService.LoginAsync(request, ct);
+            return Ok(response);
+        }
+        catch (DomainException)
+        {
+            // Return generic 401 — never reveal whether username or password was wrong (OWASP A07)
+            return Unauthorized(new { error = "Invalid username or password." });
+        }
     }
 
     /// <summary>Public endpoint — used to smoke-test that the API is reachable.</summary>

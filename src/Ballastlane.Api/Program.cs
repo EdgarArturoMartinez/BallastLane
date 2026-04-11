@@ -17,14 +17,22 @@ try
     var builder = WebApplication.CreateBuilder(args);
 
     // ── Serilog ───────────────────────────────────────────────────────────
-    builder.Host.UseSerilog((ctx, services, cfg) => cfg
-        .ReadFrom.Configuration(ctx.Configuration)
-        .ReadFrom.Services(services)
-        .WriteTo.Console(outputTemplate:
-            "[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}")
-        .WriteTo.File("logs/ballastlane-.log",
-            rollingInterval: RollingInterval.Day,
-            retainedFileCountLimit: 7));
+    builder.Host.UseSerilog((ctx, services, cfg) =>
+    {
+        cfg.ReadFrom.Configuration(ctx.Configuration)
+           .ReadFrom.Services(services)
+           .WriteTo.Console(outputTemplate:
+               "[{Timestamp:HH:mm:ss} {Level:u3}] {CorrelationId} {Message:lj}{NewLine}{Exception}");
+
+        // Skip file sink in Testing — concurrent WebApplicationFactory instances
+        // running in the same process would race to lock the same log file.
+        if (!ctx.HostingEnvironment.IsEnvironment("Testing"))
+        {
+            cfg.WriteTo.File("logs/ballastlane-.log",
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7);
+        }
+    });
 
     // ── Infrastructure (repos, services, JWT settings) ────────────────────
     builder.Services.AddInfrastructure(builder.Configuration);
@@ -111,9 +119,10 @@ try
     // ═════════════════════════════════════════════════════════════════════
     var app = builder.Build();
 
-    // ── Run DB migrations and seed on startup ─────────────────────────────
-    using (var scope = app.Services.CreateScope())
+    // ── Run DB migrations and seed on startup (skipped in Testing environment) ──
+    if (!app.Environment.IsEnvironment("Testing"))
     {
+        using var scope = app.Services.CreateScope();
         var migrator = scope.ServiceProvider.GetRequiredService<DbMigrator>();
         await migrator.MigrateAsync();
 
@@ -160,3 +169,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Required for WebApplicationFactory<Program> in integration tests
+public partial class Program { }
