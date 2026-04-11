@@ -52,11 +52,21 @@
 - CI must run `dotnet build` and `dotnet test` on PRs.
 - Add minimal integration test for Auth and primary Task CRUD flows.
 
-## Current Project State (Exploration & Structuring)
+## Current Project State (Progress & Next Steps)
 
-- Phase: Exploration / design. No production code yet; architecture proposals evaluated.
-- Decided constraints: Clean Architecture / Hexagonal; ADO.NET; SQL Server; TDD. Task & Auth modules defined in HU-01 and HU-02.
-- Next technical steps: scaffold solution, add Domain and Application projects, add basic DTOs and interfaces, implement simple ADO.NET repository and migration scripts.
+- Phase: Implementation — Phases 0–6 completed; Phase 7 (containerization) scaffolded.
+- Completed work: solution scaffold, Domain/Application/Application DTOs and ports, Infrastructure ADO.NET repositories, Db migrator/seeder, API controllers, React+Vite frontend, tests (unit + integration) all green locally (92 tests passing).
+- Recent changes: Dockerfiles for API and frontend, `docker-compose.yml`, `.dockerignore` files and `scripts/dev-up.ps1` / `scripts/dev-down.ps1` added and committed to branch `building-solution-webapi`.
+- Current blocking step: Docker Desktop restart required on your machine before running `docker-compose up` to validate the stack.
+- Next technical steps (recommended):
+	1. Restart Docker Desktop and run `docker-compose up --build -d` to validate containers (db → api → web).
+	2. Verify runtime behaviour and logs; fix any environment-specific issues.
+	3. Add minimal CI (GitHub Actions) to run `dotnet build` and `dotnet test` on PRs.
+	4. Add a short README `Run Locally` section with exact env var guidance and seeded demo credentials.
+
+Notes:
+- ADO.NET repositories and DB migrations are already implemented earlier in the project — they are not pending work.
+- This memory is the canonical short summary the assistant will read to resume the project; update it if conventions or phase change.
 
 ## Useful file references
 
