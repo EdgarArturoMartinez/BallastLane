@@ -87,3 +87,8 @@ Next-session start steps (what to do when you return):
 4. Run quick verification: `dotnet build` and `dotnet test` (or `docker-compose up --build -d` if using Docker). Report failures immediately in `DAILY_CONTEXT.md` and create a tiny ticket in your issue tracker.
 
 Keep this file short; updates should be additive and versioned with commits.
+
+## Assistant Resume Behavior
+- On session start the assistant SHOULD read `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md` to resume state. Do NOT require the user to paste large files or the full checkpoint document.
+- `Arthur_Checkpoint_Exploration.md` is an extended checkpoint/history file and SHOULD only be read when explicitly requested (e.g., "Read checkpoint history").
+- Use the session start single-line prompt (documented in `docs/DAILY_CONTEXT.md`) to resume. At end-of-day use the single-line EOD prompt to trigger auto-sync, commit and push of the docs.
