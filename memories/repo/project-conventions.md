@@ -67,7 +67,7 @@
 Notes:
 - ADO.NET repositories and DB migrations are already implemented earlier in the project — they are not pending work.
 - This memory is the canonical short summary the assistant will read to resume the project; update it if conventions or phase change.
-- Assistant resume behavior: the assistant SHOULD read this file and `/docs/DAILY_CONTEXT.md` on session start and use them as the canonical, minimal context. `Arthur_Checkpoint_Exploration.md` is an extended history file and should only be read when explicitly requested by the user.
+- Assistant resume behavior: the assistant SHOULD read `/.github/copilot-instructions.md`, this file (`/memories/repo/project-conventions.md`) and `/docs/DAILY_CONTEXT.md` on session start and use them as the canonical, minimal context. `Arthur_Checkpoint_Exploration.md` is an extended history file and should only be read when explicitly requested by the user.
 
 ## Useful file references
 

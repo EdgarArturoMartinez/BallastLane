@@ -22,7 +22,11 @@ Quick start for next session (exact steps to paste to the assistant):
 2. Open [memories/repo/project-conventions.md](memories/repo/project-conventions.md) and [docs/DAILY_CONTEXT.md](docs/DAILY_CONTEXT.md) to review state
 3. Paste this exact single-line instruction into the chat with the assistant (copy/paste exactly):
 
-Start: read /memories/repo/project-conventions.md and /docs/DAILY_CONTEXT.md. Summarize in 5 lines and generate a precise to-do list for today (3 tasks).
+Start: read /.github/copilot-instructions.md, /memories/repo/project-conventions.md and /docs/DAILY_CONTEXT.md. Summarize in 5 lines and generate a precise to-do list for today (3 tasks).
+
+4. At end of day, paste this exact single-line EOD instruction (copy/paste exactly) to trigger document sync + commit + push:
+
+EOD: ensure /.github/copilot-instructions.md, /docs/DAILY_CONTEXT.md and /memories/repo/project-conventions.md reflect today's work; commit with message "docs: EOD update" and push.
 
 4. After the assistant returns the plan, if Docker Desktop was restarted, run:
 ```powershell

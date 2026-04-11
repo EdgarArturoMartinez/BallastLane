@@ -4,7 +4,7 @@
 **Position:** Ballast Lane — .NET Technical Interview  
 **Date:** April 10, 2026  
 
-NOTE FOR ASSISTANT RESUME: The assistant should first read `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md` to resume state. `Arthur_Checkpoint_Exploration.md` is extended history and should only be read when explicitly requested by the user.
+NOTE FOR ASSISTANT RESUME: The assistant should first read `/.github/copilot-instructions.md`, `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md` to resume state. `Arthur_Checkpoint_Exploration.md` is extended history and should only be read when explicitly requested by the user.
 
 ---
 
