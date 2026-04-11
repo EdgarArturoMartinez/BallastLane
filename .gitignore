@@ -1,14 +1,21 @@
+# ── .NET ────────────────────────────────────────────────
 bin/
 obj/
 *.user
 *.suo
 .vs/
+*.log
+
+# ── Node / Frontend ─────────────────────────────────────
+node_modules/
+dist/
 .venv/
-# Ignore everything
-*
 
-# Except the checkpoint document
-!Arthur_Checkpoint_Exploration.md
+# ── IDE / OS ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
 
-# Keep .gitignore itself
-!.gitignore
+# ── Secrets ──────────────────────────────────────────────
+*.env
+appsettings.Production.json
+
