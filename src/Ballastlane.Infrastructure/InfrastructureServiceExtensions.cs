@@ -1,7 +1,8 @@
 using Ballastlane.Application.Ports;
 using Ballastlane.Application.Services;
-using Ballastlane.Infrastructure.Persistence;
+using Ballastlane.Application.DTOs;
 using Ballastlane.Infrastructure.Persistence.Repositories;
+using Ballastlane.Infrastructure.Persistence;
 using Ballastlane.Infrastructure.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,9 +31,13 @@ public static class InfrastructureServiceExtensions
 
         services.AddSingleton(new SqlConnectionFactory(connectionString));
 
+        // DbExecutor — centralizes ADO.NET command execution; injected into repositories.
+        services.AddScoped<DbExecutor>();
+
         // ── Repositories (secondary adapters) ─────────────────────────────
         services.AddScoped<ITaskRepository, AdoTaskRepository>();
         services.AddScoped<IUserRepository, AdoUserRepository>();
+        services.AddScoped<IAuditRepository, AdoAuditRepository>();
 
         // ── Security (strategy adapters) ──────────────────────────────────
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
@@ -46,6 +51,7 @@ public static class InfrastructureServiceExtensions
         // ── Application services ───────────────────────────────────────────
         services.AddScoped<ITaskService, TaskService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAuditService, AuditService>();
 
         // ── DB migration & seeder (registered for manual invocation at startup) ──
         services.AddSingleton(sp =>

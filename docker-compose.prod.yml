@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "${SA_PASSWORD}"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - db-data:/var/opt/mssql
+    restart: always
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Ballastlane.Api/Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRING}
+      - Jwt__Secret=${JWT_SECRET}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+    depends_on:
+      - db
+    ports:
+      - "5000:80"
+    restart: always
+
+  web:
+    build:
+      context: web/ballastlane-web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+    restart: always
+
+volumes:
+  db-data:

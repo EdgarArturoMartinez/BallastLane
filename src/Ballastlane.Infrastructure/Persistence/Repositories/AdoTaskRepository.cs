@@ -1,6 +1,7 @@
 using Ballastlane.Application.Ports;
 using Ballastlane.Domain.Entities;
 using Microsoft.Data.SqlClient;
+using Ballastlane.Infrastructure.SqlQueries;
 
 namespace Ballastlane.Infrastructure.Persistence.Repositories;
 
@@ -8,108 +9,71 @@ namespace Ballastlane.Infrastructure.Persistence.Repositories;
 /// ADO.NET adapter implementing ITaskRepository.
 ///
 /// Pattern: Repository (secondary adapter in Hexagonal arch).
+/// SQL text is loaded from SqlQueries/*.sql (centralized, versionable).
+/// Execution is delegated to DbExecutor — no ADO.NET boilerplate here.
+///
 /// SOLID:
 ///   SRP  — only handles Task persistence; no business logic.
 ///   DIP  — implements the ITaskRepository port defined in Application.
 ///   LSP  — fully substitutable for any ITaskRepository consumer (including mocks in tests).
 ///
-/// All SQL uses parameterized queries — no string concatenation → OWASP SQL-Injection safe.
+/// All SQL uses parameterized queries — OWASP SQL-Injection safe.
 /// </summary>
 public sealed class AdoTaskRepository : ITaskRepository
 {
-    private readonly SqlConnectionFactory _factory;
+    private readonly DbExecutor _db;
 
-    public AdoTaskRepository(SqlConnectionFactory factory)
+    public AdoTaskRepository(DbExecutor db)
     {
-        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
-    public async Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        const string sql = """
-            SELECT Id, Title, Description, Status, DueDate, OwnerUserId
-            FROM Tasks
-            WHERE Id = @id
-            """;
+    public Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        _db.QuerySingleOrDefaultAsync(
+            SqlQueryLoader.Get("Tasks.GetById"),
+            cmd => cmd.Parameters.AddWithValue("@id", id),
+            MapTask,
+            ct);
 
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@id", id);
+    public Task<IEnumerable<TaskItem>> ListAsync(CancellationToken ct = default) =>
+        _db.QueryAsync(
+            SqlQueryLoader.Get("Tasks.List"),
+            _ => { },
+            MapTask,
+            ct);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? MapTask(reader) : null;
-    }
+    public Task CreateAsync(TaskItem task, CancellationToken ct = default) =>
+        _db.ExecuteAsync(
+            SqlQueryLoader.Get("Tasks.Create"),
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@id",          task.Id);
+                cmd.Parameters.AddWithValue("@title",       task.Title);
+                cmd.Parameters.AddWithValue("@description", task.Description);
+                cmd.Parameters.AddWithValue("@status",      task.Status.ToString());
+                cmd.Parameters.AddWithValue("@dueDate",     (object?)task.DueDate ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ownerUserId", task.OwnerUserId);
+            },
+            ct);
 
-    public async Task<IEnumerable<TaskItem>> ListAsync(CancellationToken ct = default)
-    {
-        const string sql = """
-            SELECT Id, Title, Description, Status, DueDate, OwnerUserId
-            FROM Tasks
-            ORDER BY Title
-            """;
+    public Task UpdateAsync(TaskItem task, CancellationToken ct = default) =>
+        _db.ExecuteAsync(
+            SqlQueryLoader.Get("Tasks.Update"),
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@id",          task.Id);
+                cmd.Parameters.AddWithValue("@title",       task.Title);
+                cmd.Parameters.AddWithValue("@description", task.Description);
+                cmd.Parameters.AddWithValue("@status",      task.Status.ToString());
+                cmd.Parameters.AddWithValue("@dueDate",     (object?)task.DueDate ?? DBNull.Value);
+            },
+            ct);
 
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-        var tasks = new List<TaskItem>();
-        while (await reader.ReadAsync(ct))
-            tasks.Add(MapTask(reader));
-
-        return tasks;
-    }
-
-    public async Task CreateAsync(TaskItem task, CancellationToken ct = default)
-    {
-        const string sql = """
-            INSERT INTO Tasks (Id, Title, Description, Status, DueDate, OwnerUserId)
-            VALUES (@id, @title, @description, @status, @dueDate, @ownerUserId)
-            """;
-
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@id",          task.Id);
-        cmd.Parameters.AddWithValue("@title",       task.Title);
-        cmd.Parameters.AddWithValue("@description", task.Description);
-        cmd.Parameters.AddWithValue("@status",      task.Status.ToString());
-        cmd.Parameters.AddWithValue("@dueDate",     (object?)task.DueDate ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@ownerUserId", task.OwnerUserId);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
-
-    public async Task UpdateAsync(TaskItem task, CancellationToken ct = default)
-    {
-        const string sql = """
-            UPDATE Tasks
-            SET Title       = @title,
-                Description = @description,
-                Status      = @status,
-                DueDate     = @dueDate
-            WHERE Id = @id
-            """;
-
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@id",          task.Id);
-        cmd.Parameters.AddWithValue("@title",       task.Title);
-        cmd.Parameters.AddWithValue("@description", task.Description);
-        cmd.Parameters.AddWithValue("@status",      task.Status.ToString());
-        cmd.Parameters.AddWithValue("@dueDate",     (object?)task.DueDate ?? DBNull.Value);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
-
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
-    {
-        const string sql = "DELETE FROM Tasks WHERE Id = @id";
-
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@id", id);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
+    public Task DeleteAsync(Guid id, CancellationToken ct = default) =>
+        _db.ExecuteAsync(
+            SqlQueryLoader.Get("Tasks.Delete"),
+            cmd => cmd.Parameters.AddWithValue("@id", id),
+            ct);
 
     // ── Mapping ────────────────────────────────────────────────────────────
 

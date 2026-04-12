@@ -3,7 +3,8 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY web/ballastlane-web/package*.json ./
-RUN npm ci --silent
+# Use `npm install` in the build image to avoid failing when no package-lock.json exists
+RUN npm install --no-audit --progress=false
 
 COPY web/ballastlane-web/ .
 RUN npm run build

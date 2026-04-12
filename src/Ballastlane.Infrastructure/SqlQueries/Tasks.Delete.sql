@@ -1,0 +1,1 @@
+DELETE FROM Tasks WHERE Id = @id
