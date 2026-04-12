@@ -1,0 +1,15 @@
+{
+  "name": "ballastlane-web-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:open": "playwright test --ui",
+    "install-browsers": "npx playwright install --with-deps"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.43.0"
+  }
+}

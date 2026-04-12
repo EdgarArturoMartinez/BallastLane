@@ -1,0 +1,1 @@
+SELECT DISTINCT Action FROM Audits ORDER BY Action

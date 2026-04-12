@@ -9,6 +9,7 @@
 import type {
   TaskItem, CreateTaskRequest, UpdateTaskRequest,
   LoginRequest, RegisterRequest, LoginResponse, UserDto,
+  AuditEntry, PagedResult, AuditMeta,
 } from '../types/api';
 
 const BASE = '/api';
@@ -54,6 +55,7 @@ export const authApi = {
   login:    (data: LoginRequest)    => request<LoginResponse>('POST', '/auth/login', data),
   register: (data: RegisterRequest) => request<UserDto>('POST', '/auth/register', data),
   ping:     ()                      => request<{ message: string }>('GET', '/auth/ping'),
+  signout:  ()                      => request<void>('POST', '/auth/signout'),
 };
 
 // ── Tasks API ─────────────────────────────────────────────────────────────
@@ -68,4 +70,16 @@ export const tasksApi = {
 // ── Users API ─────────────────────────────────────────────────────────────
 export const usersApi = {
   me: () => request<UserDto>('GET', '/users/me'),
+};
+
+// ── Audit API ─────────────────────────────────────────────────────────────
+export const auditApi = {
+  list: (page = 1, pageSize = 10, entity?: string, action?: string, q?: string) => {
+    const parts: string[] = [`page=${page}`, `pageSize=${pageSize}`];
+    if (entity) parts.push(`entity=${encodeURIComponent(entity)}`);
+    if (action) parts.push(`action=${encodeURIComponent(action)}`);
+    if (q) parts.push(`q=${encodeURIComponent(q)}`);
+    return request<PagedResult<AuditEntry>>('GET', `/audit?${parts.join('&')}`);
+  },
+  meta: () => request<AuditMeta>('GET', '/audit/meta'),
 };

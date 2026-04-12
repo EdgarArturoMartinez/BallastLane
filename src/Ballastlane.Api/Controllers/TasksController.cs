@@ -1,4 +1,5 @@
 using Ballastlane.Application.DTOs;
+using Ballastlane.Application.Ports;
 using Ballastlane.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,10 +18,12 @@ namespace Ballastlane.Api.Controllers;
 public sealed class TasksController : ControllerBase
 {
     private readonly ITaskService _taskService;
+    private readonly IAuditRepository _auditRepository;
 
-    public TasksController(ITaskService taskService)
+    public TasksController(ITaskService taskService, IAuditRepository auditRepository)
     {
         _taskService = taskService;
+        _auditRepository = auditRepository;
     }
 
     /// <summary>Returns all tasks for the authenticated user's context.</summary>
@@ -49,7 +52,9 @@ public sealed class TasksController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateTaskRequest request, CancellationToken ct)
     {
         var ownerId = GetCurrentUserId();
+        var username = GetCurrentUsername();
         var dto = await _taskService.CreateAsync(ownerId, request, ct);
+        await _auditRepository.InsertAsync("Tasks", dto.Id.ToString(), "Created", ownerId, username, null, dto, ct);
         return CreatedAtAction(nameof(GetById), new { id = dto.Id }, dto);
     }
 
@@ -60,7 +65,14 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTaskRequest request, CancellationToken ct)
     {
+        var actorId = GetCurrentUserId();
+        var actorUsername = GetCurrentUsername();
+
+        var oldDto = await _taskService.GetByIdAsync(id, ct);
+        if (oldDto is null) return NotFound();
+
         var dto = await _taskService.UpdateAsync(id, request, ct);
+        await _auditRepository.InsertAsync("Tasks", id.ToString(), "Updated", actorId, actorUsername, oldDto, dto, ct);
         return Ok(dto);
     }
 
@@ -70,7 +82,14 @@ public sealed class TasksController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
+        var actorId = GetCurrentUserId();
+        var actorUsername = GetCurrentUsername();
+
+        var oldDto = await _task_service_getbyid(id, ct);
+        if (oldDto is null) return NotFound();
+
         await _taskService.DeleteAsync(id, ct);
+        await _auditRepository.InsertAsync("Tasks", id.ToString(), "Deleted", actorId, actorUsername, oldDto, null, ct);
         return NoContent();
     }
 
@@ -85,4 +104,13 @@ public sealed class TasksController : ControllerBase
             ? id
             : throw new UnauthorizedAccessException("User identity could not be resolved.");
     }
+
+    private string? GetCurrentUsername()
+    {
+        return User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+               ?? User.Identity?.Name;
+    }
+
+    // small wrapper to keep calls consistent (helps in testing/mocking)
+    private Task<TaskDto?> _task_service_getbyid(Guid id, CancellationToken ct) => _taskService.GetByIdAsync(id, ct);
 }
