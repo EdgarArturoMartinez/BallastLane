@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, NavLink } from 'react-router-dom'
 
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/login');
   }
 
@@ -29,9 +29,12 @@ export default function Header() {
 
         {/* Desktop nav */}
         <nav className="hidden sm:flex items-center gap-1">
-          <a href="/tasks" className="px-3 py-1.5 rounded-lg text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30">
+          <NavLink to="/tasks" className={({ isActive }) => `px-3 py-1.5 rounded-lg text-sm font-medium ${isActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
             Tasks
-          </a>
+          </NavLink>
+          <NavLink to="/audit" className={({ isActive }) => `px-3 py-1.5 rounded-lg text-sm font-medium ${isActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+            Audit
+          </NavLink>
         </nav>
 
         {/* Right side */}
@@ -80,7 +83,8 @@ export default function Header() {
               {user?.role && <p className="text-xs text-gray-500 dark:text-gray-400">{user.role}</p>}
             </div>
           </div>
-          <a href="/tasks" className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Tasks</a>
+          <NavLink to="/tasks" className={({ isActive }) => `block px-3 py-2 rounded-lg text-sm ${isActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>Tasks</NavLink>
+          <NavLink to="/audit" className={({ isActive }) => `block px-3 py-2 rounded-lg text-sm ${isActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>Audit</NavLink>
           <button onClick={handleLogout} className="w-full text-left px-3 py-2 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
             Sign out
           </button>

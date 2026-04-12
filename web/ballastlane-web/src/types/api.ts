@@ -58,3 +58,32 @@ export interface ApiError {
   error: string;
   correlationId?: string;
 }
+
+export interface AuditEntry {
+  id: string;
+  entity: string; // e.g. 'Users' or 'Tasks'
+  entityId: string;
+  action: 'Create' | 'Update' | 'Delete' | string;
+  userId?: string | null; // who performed the change (may be null for system)
+  username?: string | null;
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+  timestamp: string; // ISO string
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
+}
+
+export interface AuditMeta {
+  entities: string[];
+  actions: string[];
+  server?: {
+    now: string; // ISO (UTC)
+    localNow?: string; // ISO in server local tz
+    timezone: string;
+    offset: string; // formatted +HH:mm
+    culture: string;
+  };
+}

@@ -5,7 +5,7 @@ services:
       SA_PASSWORD: "Your_password123!"
       ACCEPT_EULA: "Y"
     ports:
-      - "1433:1433"
+      - "14330:1433"
     healthcheck:
       # SQL Server 2022 images ship sqlcmd under mssql-tools18; -C trusts the self-signed cert.
       # Fallback to the legacy path for older images just in case.

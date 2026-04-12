@@ -27,3 +27,12 @@ html { scroll-behavior: smooth; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Immediate DOM fallback for drag visuals (used briefly on dragstart) */
+.dragging-immediate {
+  opacity: 1 !important;
+  transform: scale(1.05) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.12) !important;
+  z-index: 50 !important;
+  outline: 2px solid rgba(99,102,241,0.06);
+}

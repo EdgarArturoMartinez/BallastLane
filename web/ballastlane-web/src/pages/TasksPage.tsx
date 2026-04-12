@@ -39,6 +39,9 @@ export default function TasksPage() {
   const [loading,   setLoading]   = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing,   setEditing]   = useState<TaskItem | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
@@ -88,8 +91,61 @@ export default function TasksPage() {
     }
   }
 
-  function handleLogout() {
-    logout();
+  async function handleMoveTask(id: string, newStatus: TaskStatus) {
+    try {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      const update = { title: task.title, description: task.description, status: newStatus, dueDate: task.dueDate } as UpdateTaskRequest;
+      await tasksApi.update(id, update);
+      await loadTasks();
+      toast.success('Task moved');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to move task');
+    }
+  }
+
+  function handleDragStart(e: React.DragEvent<HTMLDivElement>, id: string) {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Add immediate DOM feedback so the card looks distinct while dragging
+    try {
+      (e.currentTarget as HTMLElement).classList.add('dragging-immediate');
+      // Use the element itself as the drag image for a faithful preview
+      e.dataTransfer.setDragImage(e.currentTarget as Element, 16, 16);
+    } catch (err) {
+      // noop - defensive in case browser blocks setDragImage
+    }
+    setDraggingId(id);
+    setIsDragging(true);
+  }
+
+  function handleDragEnd(e?: React.DragEvent) {
+    // remove immediate DOM feedback if present
+    try {
+      if (e && e.currentTarget) (e.currentTarget as HTMLElement).classList.remove('dragging-immediate');
+    } catch (err) {}
+    setDraggingId(null);
+    setDragOverColumn(null);
+    // Slight delay to avoid triggering click after drag
+    setTimeout(() => setIsDragging(false), 50);
+  }
+
+  function handleColumnDragOver(e: React.DragEvent, key: TaskStatus) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverColumn(key);
+  }
+
+  function handleColumnDrop(e: React.DragEvent, key: TaskStatus) {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    setDragOverColumn(null);
+    setDraggingId(null);
+    if (id) handleMoveTask(id, key);
+  }
+
+  async function handleLogout() {
+    await logout();
     navigate('/login');
   }
 
@@ -107,7 +163,7 @@ export default function TasksPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Tasks</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {loading ? 'Loadingâ€¦' : `${tasks.length} task${tasks.length !== 1 ? 's' : ''} Â· ${totalDone} completed`}
+              {loading ? 'Loading…' : `${tasks.length} task${tasks.length !== 1 ? 's' : ''} · ${totalDone} completed`}
             </p>
           </div>
           <button onClick={() => setShowModal(true)}
@@ -172,7 +228,12 @@ export default function TasksPage() {
             {COLUMNS.map(col => {
               const colTasks = tasks.filter(t => t.status === col.key);
               return (
-                <div key={col.key} className={`rounded-2xl border p-4 ${col.bg}`}>
+                <div key={col.key}
+                  onDragOver={e => handleColumnDragOver(e, col.key)}
+                  onDrop={e => handleColumnDrop(e, col.key)}
+                  onDragEnter={() => setDragOverColumn(col.key)}
+                  onDragLeave={() => setDragOverColumn(null)}
+                  className={`rounded-2xl border p-4 ${col.bg} ${dragOverColumn === col.key ? 'ring-2 ring-indigo-400' : ''}`}>
                   {/* Column header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -190,8 +251,11 @@ export default function TasksPage() {
                       <div className="text-center py-8 text-xs text-gray-400 dark:text-gray-500">No tasks here</div>
                     ) : colTasks.map(task => (
                       <div key={task.id}
-                        className="group bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer"
-                        onClick={() => setEditing(task)}>
+                        draggable
+                        onDragStart={e => handleDragStart(e, task.id)}
+                        onDragEnd={handleDragEnd}
+                        className={`group bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer transform ${draggingId === task.id ? 'opacity-100 scale-105 shadow-2xl ring-2 ring-indigo-400 z-20' : ''}`}
+                        onClick={() => { if (!isDragging) setEditing(task); }}>
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <h3 className="text-sm font-semibold text-gray-900 dark:text-white leading-snug line-clamp-2 flex-1">{task.title}</h3>
                           <button

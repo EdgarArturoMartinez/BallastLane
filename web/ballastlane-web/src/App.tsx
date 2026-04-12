@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage    from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import TasksPage    from './pages/TasksPage';
+import AuditTasks   from './pages/AuditTasks';
 import './index.css';
 
 /** Redirects unauthenticated users to /login. */
@@ -19,6 +20,7 @@ function AppRoutes() {
       <Route path="/login"    element={isAuthenticated ? <Navigate to="/tasks" replace /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/tasks" replace /> : <RegisterPage />} />
       <Route path="/tasks"    element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
+      <Route path="/audit"    element={<ProtectedRoute><AuditTasks /></ProtectedRoute>} />
       <Route path="*"         element={<Navigate to="/tasks" replace />} />
     </Routes>
   );

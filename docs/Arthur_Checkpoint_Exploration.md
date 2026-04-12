@@ -4,7 +4,7 @@
 **Position:** Ballast Lane — .NET Technical Interview  
 **Date:** April 10, 2026  
 
-NOTE FOR ASSISTANT RESUME: The assistant should first read `/.github/copilot-instructions.md`, `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md` to resume state. `Arthur_Checkpoint_Exploration.md` is extended history and should only be read when explicitly requested by the user.
+NOTE FOR ASSISTANT RESUME: The assistant should first read `/.github/copilot-instructions.md` to resume state. `Arthur_Checkpoint_Exploration.md` is extended history and should only be read when explicitly requested by the user.
 
 ---
 
@@ -696,24 +696,39 @@ CREATE INDEX IX_Tasks_OwnerUserId ON Tasks(OwnerUserId);
 
 > This section documents the real discussions between Arturo (the developer) and the AI assistant during the exploration phase. These are not AI-generated outputs accepted blindly — they are deliberated decisions where the human challenged, validated, and redirected the AI's proposals.
 
+### Recent Human Decisions (2026-04-12)
+
+The following decisions were explicitly chosen by Arturo after direct discussion with the AI. They record human judgement and distinguish developer decisions from AI suggestions.
+
+- **Drag-and-drop for tasks:** Arturo decided to add drag-and-drop behavior to task cards so users can change task status by dragging cards between columns. Implementation notes: drag handlers were added to `web/ballastlane-web/src/pages/TasksPage.tsx` to persist status changes via the Tasks API and provide immediate visual feedback.
+- **Frontend layout change:** Arturo altered the basic frontend layout originally proposed by the AI, approving a Tailwind-based Kanban redesign (Login, Header, Tasks pages) to improve clarity and presentation.
+- **Encoding fixes:** Arturo identified encoding issues (for example `Â·` and `â€¦`) in the UI and directed the fixes: replace escaped sequences in source files, add `charset utf-8` to `web/ballastlane-web/nginx.conf`, and add `.editorconfig` and `.gitattributes` to the repository. The web image was rebuilt and verified.
+- **API Docs button:** Arturo requested an "API Docs" (Swagger) button on the Login page so reviewers can quickly open and test API endpoints. The button was implemented and the link was made configurable via `VITE_API_URL`.
+- **Preserve repository architecture:** Arturo declined to accept additional files, folders, or scripts suggested by the AI that would have altered or complicated the project's Hexagonal/Clean architecture. Preference was given to minimal, well-scoped changes that preserve reviewability and the existing repository structure.
+
+- **Audit write instrumentation:** Arturo approved adding write-side audit instrumentation so create/update/delete operations are recorded. Implementation notes: added `sql/migrations/0003_audit.sql` (creates `Audits` table), extended `IAuditRepository` with `InsertAsync`, implemented `AdoAuditRepository.InsertAsync`, and added audit inserts in `TasksController` (Create/Update/Delete) and `AuthService.Register`. Verified locally: the API applies migrations at startup and creating a task as `demo` produces an `Audits` row with `NewValues` JSON. The audit feature provides a simple forensic trail for Tasks and Users changes.
+
+- **Human decisions by Arturo:**
+  - **Server vs. local timestamps:** Arturo approved showing both the server timestamp and the user's local timestamp in the audit UI to improve forensic clarity; the UI displays server time, user local time, and timezone indicators/flags.
+  - **Server-side and client-side pagination:** Arturo requested backend and frontend pagination for audit records to ensure scalability; paging was implemented in `IAuditRepository.ListPagedAsync` and consumed by the UI.
+  - **Audit strategy:** Arturo defined and approved the audit strategy: persist `OldValues` and `NewValues` JSON in `Audits` rows, expose metadata endpoints, and provide paged endpoints for browsing and filtering.
+  - **Drag-and-drop UX decision:** Arturo approved adding drag-and-drop to `TasksPage` with persisted status changes in the API to provide an intuitive workflow and immediate visual feedback.
+
+These entries document the human-driven decisions and provide short rationales to aid reviewers during the interview. They are the definitive record of choices made on 2026-04-12.
+
 ---
 
 ### Context files & Copilot integration (Architectural decision)
 
-- `.github/copilot-instructions.md`: repo-level instructions. Purpose: short, authoritative policy that Copilot treats as workspace instructions and loads automatically in many Copilot clients. Location rationale: `.github/` is the conventional place for repo metadata and tool configuration (workflows, issue templates); tools and reviewers expect to find repo-level guidance there.
+- `.github/copilot-instructions.md`: repo-level instructions. Purpose: short, authoritative policy the assistant can consult. Place concise, high-signal rules here.
 
-- `/memories/repo/project-conventions.md`: repository-scoped memory used to store canonical conventions and non-sensitive facts (architecture choices, no-ORM rules, CI commands). Purpose: persistent facts the agent can reference without re-sending them in prompts. Location rationale: `/memories/repo/` groups project memories and makes them discoverable by Copilot and by humans.
-
-- `/memories/session/`: session-scoped reminders (for example `/memories/session/eod_reminder.md`). Purpose: temporary coordination notes used only within the current session; cleared after the session. Location rationale: separate lifecycle and avoids polluting long-term memory.
-
-- `docs/DAILY_CONTEXT.md`: end-of-day summary (6–12 lines). Purpose: concise daily context so the agent can resume exactly where you left off. Location rationale: `docs/` is visible to reviewers and easy to open during demos.
+- `docs/Arthur_Checkpoint_Exploration.md`: canonical checkpoint and project facts. Keep this file up to date with decisions, phase status and short EOD summaries.
 
 Notes on auto-loading and usage:
-- Copilot/Agent will automatically load short repo-level instructions (`.github/copilot-instructions.md`) and memory files when available in supported clients; this avoids pasting large texts into prompts. However behaviour depends on client/versions: sometimes files are loaded on conversation start, sometimes when the agent detects relevance, and if you edit them during a session you may need to ask the agent to re-read them explicitly.
-- Keep these files short (50–200 lines for `copilot-instructions.md`, compact bullets for memories). Short files are more likely to be prioritized and are faster to scan.
-- The operational pattern we adopt: keep permanent rules in `memories/repo/project-conventions.md`, place repo-level agent guidance in `.github/copilot-instructions.md`, and write a daily `docs/DAILY_CONTEXT.md` at EOD. Agent Mode reads them as tool calls (free) instead of re-sending content as prompts (which costs tokens/premium requests).
+- The assistant may consult `/.github/copilot-instructions.md` and `docs/Arthur_Checkpoint_Exploration.md` when requested. If you edit these files mid-session, ask the assistant to re-read them explicitly.
+- Keep these files short (50–200 lines) and focused so they are easy to read and reference.
 
-Why this is an architectural decision: it formalizes how we provide context to AI helpers — separating permanent policy, short daily context, and session coordination — so the assistant behaves predictably and reviewers can reproduce the same environment.
+Why this is an architectural decision: it formalizes how we provide context to AI helpers — separating permanent policy and short daily context — so the assistant behaves predictably and reviewers can reproduce the same environment.
 
 
 ### Discussion 1: Data Access — Is ADO.NET the Only Option? (Human-Initiated)
@@ -826,15 +841,15 @@ The exercise document does **not** explicitly require logging. However:
 ## EOD Update (2026-04-11)
 
 - Completed: Updated repo-level agent instructions, added daily-context template, and recorded project conventions in repo memory.
-- Files changed: [.github/copilot-instructions.md](.github/copilot-instructions.md), [docs/DAILY_CONTEXT.md](docs/DAILY_CONTEXT.md), /memories/repo/project-conventions.md (memory), Arthur_Checkpoint_Exploration.md
+- Files changed: [.github/copilot-instructions.md](.github/copilot-instructions.md), Arthur_Checkpoint_Exploration.md
 - Decisions: Keep repository docs in English; follow EOD routine and memory usage for consistent agent resumption.
 - Blockers: User finishing Docker Desktop restart before starting containers.
 - Next: 1) User confirms Docker ready 2) Start `docker-compose up --build -d` to validate stack 3) Add CI pipeline (GitHub Actions)
 
 ### Next-session checklist (what to run first)
 1. Pull latest branch: `git pull origin <branch>`
-2. Open [memories/repo/project-conventions.md](memories/repo/project-conventions.md) and [docs/DAILY_CONTEXT.md](docs/DAILY_CONTEXT.md)
-3. Ask the assistant: "Resume project using `/memories/repo/project-conventions.md` and `/docs/DAILY_CONTEXT.md`. Show a 5-line plan to continue."
+2. Open [docs/Arthur_Checkpoint_Exploration.md](docs/Arthur_Checkpoint_Exploration.md) to review the current state.
+3. Ask the assistant: "Resume project using `docs/Arthur_Checkpoint_Exploration.md`. Show a 5-line plan to continue."
 4. If Docker Desktop was restarted, start the stack:
   ```powershell
   docker-compose up --build -d
@@ -1068,7 +1083,7 @@ Arturo considered having a `--use-sqlite` flag for zero-dependency runs. We deci
 ## EOD Update (2026-04-12)
 
 - Completed: 1) Professional frontend UI redesign (Tailwind Kanban layout, animated modals, responsive header, toast notifications — **user approved**); 2) Fixed Docker build errors from component duplication and CSS syntax issues; 3) Consolidated development phases into checkpoint (deleted `docs/12_PHASE_ROADMAP.md`); 4) Updated all context docs to reflect actual DB schema.
-- Files changed: `web/ballastlane-web/src/pages/LoginPage.tsx`, `RegisterPage.tsx`, `TasksPage.tsx`, `web/ballastlane-web/src/components/Header.tsx`, `TaskModal.tsx`, `web/ballastlane-web/src/index.css`, `web/ballastlane-web/tailwind.config.cjs`, `web/ballastlane-web/postcss.config.cjs`, `web/ballastlane-web/package.json`, `web/ballastlane-web/Dockerfile`, `docs/Arthur_Checkpoint_Exploration.md`, `.github/copilot-instructions.md`, `memories/repo/project-conventions.md`, `docs/DAILY_CONTEXT.md` (deleted `docs/12_PHASE_ROADMAP.md`).
+- Files changed: `web/ballastlane-web/src/pages/LoginPage.tsx`, `RegisterPage.tsx`, `TasksPage.tsx`, `web/ballastlane-web/src/components/Header.tsx`, `TaskModal.tsx`, `web/ballastlane-web/src/index.css`, `web/ballastlane-web/tailwind.config.cjs`, `web/ballastlane-web/postcss.config.cjs`, `web/ballastlane-web/package.json`, `web/ballastlane-web/Dockerfile`, `docs/Arthur_Checkpoint_Exploration.md`, `.github/copilot-instructions.md` (deleted `docs/12_PHASE_ROADMAP.md`).
 - Decisions: Frontend redesign approved by user; phases now tracked inside checkpoint (single source of truth); actual DB schema documented (Users has `Salt`+`Role`; Tasks uses `OwnerUserId`; `Status` is NVARCHAR).
 - Blockers: None — full stack running and UI redesign approved.
 - Next: 1) E2E tests with Playwright (pending user confirmation) 2) Create PR for frontend redesign 3) Final release tag + README polish.
@@ -1165,19 +1180,20 @@ public class DatabaseInitializer
 
 ### Discussion 7: Copilot instructions and memories (Human-Initiated)
 
-**Arturo's question:** _"How does Copilot consume files like `.github/copilot-instructions.md` and the `memories/` folder? Do I need to ask the agent to read them every session or are they auto-loaded? Why place them in `.github/` or `/memories/`?"_
+
+**Arturo's question:** _"How does Copilot consume files like `.github/copilot-instructions.md`? Do I need to ask the agent to read them every session or are they auto-loaded? Why place them in `.github/`?"_
 
 **Summary of outcome:**
-- `.github/copilot-instructions.md` is a repo-level instruction file intended to be auto-loaded by Copilot in supported clients; placing it in `.github/` follows GitHub conventions and improves discoverability by tools and reviewers.
-- `memories/repo/...` and `memories/session/...` are the memory files used to keep canonical facts and session notes respectively. The agent treats these as files it can consult as tool calls (file reads) rather than prompt content.
-- Auto-loading behavior depends on the client/version: many Copilot/Agent clients load repo instructions at conversation start or when the agent detects relevance; if you edit those files mid-session, use a short prompt to ask the agent to re-read them.
+- `.github/copilot-instructions.md` is a repo-level instruction file intended to be consulted by Copilot in supported clients; placing it in `.github/` follows GitHub conventions and improves discoverability by tools and reviewers.
+- `docs/Arthur_Checkpoint_Exploration.md` serves as the canonical checkpoint containing project decisions and short EOD summaries; keep it up to date for session resumption.
+- Auto-loading behavior depends on the client/version: some Copilot/Agent clients load repo instructions at conversation start or when the agent detects relevance; if you edit these files mid-session, ask the assistant to re-read them explicitly.
 
 **What to say in the interview:**
-- "I maintain a short `.github/copilot-instructions.md` for repo-level policy (auto-loaded by Copilot), a `memories/repo/project-conventions.md` for canonical decisions, and a `docs/DAILY_CONTEXT.md` for day-to-day state. This lets the agent read only what's necessary and avoids re-sending large context in prompts."
+- "I maintain a short `.github/copilot-instructions.md` for repo-level policy and `docs/Arthur_Checkpoint_Exploration.md` as the canonical checkpoint. This lets the assistant read only high-signal files and avoids re-sending large context in prompts."
 
 **Practical notes:**
-- Keep instructions and memories concise and focused — Copilot prioritizes short, high-signal files. Avoid storing secrets.
-- If you ever doubt the agent is using the latest file, prompt: `Please re-read .github/copilot-instructions.md and /memories/repo/project-conventions.md`.
+- Keep these files concise and focused — Copilot prioritizes short, high-signal documents. Avoid storing secrets.
+- If you ever doubt the assistant is using the latest file, prompt: `Please re-read .github/copilot-instructions.md and docs/Arthur_Checkpoint_Exploration.md`.
 
 
 ### Discussion 8: Decisions Log — What the AI Proposed vs. What the Human Decided

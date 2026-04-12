@@ -19,11 +19,25 @@ cd Ballastlane
 docker compose up --build -d
 ```
 
+One-step start (recommended for interview/demo)
+
+Interviewers can start the full stack with a single, canonical command from the repository root. This builds the images, starts services and leaves the stack running:
+
+```powershell
+docker compose up --build -d
+```
+
+After the command completes, the services should be reachable at:
+
+- Frontend: `http://localhost:5173`
+- API (Swagger): `http://localhost:5000`
+- Demo credentials: `demo` / `Demo@12345`
+
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:5173 |
 | API (Swagger) | http://localhost:5000 |
-| SQL Server | localhost:1433 |
+| SQL Server | localhost:14330 |}
 
 **Demo credentials (pre-seeded):** `demo` / `Demo@12345`
 
@@ -65,6 +79,7 @@ cd web/ballastlane-web && npm install && npm run dev
 | DELETE | `/api/tasks/{id}` | JWT | Delete task |
 | GET | `/api/tasks/public/stats` | No | Public stats (no auth) |
 | GET | `/health` | No | Health check |
+| GET | `/api/audit` | JWT | Returns audit entries (protected) |
 
 ---
 
@@ -90,6 +105,112 @@ dotnet test Ballastlane.sln
 92 tests across 4 layers: Domain · Application · Infrastructure · API
 
 ---
+
+## E2E (Playwright)
+
+End-to-end smoke tests are scaffolded using Playwright inside the frontend folder.
+
+Quick steps (frontend):
+
+```bash
+cd web/ballastlane-web
+npm install
+# Run Playwright tests (expects the frontend to be served at http://localhost:5173)
+npm run test:e2e
+# Open the Playwright HTML report
+npx playwright show-report
+```
+
+Notes:
+- The scaffold includes `playwright.config.ts` and a minimal smoke test at `web/ballastlane-web/e2e/specs/smoke.spec.ts`.
+- Tests may require the API at `http://localhost:5000` if flows perform backend interactions; start the stack with `docker compose up --build -d` before running e2e if needed.
+
+---
+
+### Configurar la URL del API para la UI (opcional)
+
+El botón "API Docs" en la pantalla de login apunta por defecto a `http://localhost:5000`. Puedes sobrescribir esa URL en desarrollo con la variable de entorno `VITE_API_URL` (útil si el API corre en otro host/puerto).
+
+Windows (PowerShell):
+```powershell
+$env:VITE_API_URL='http://localhost:5000'
+cd web/ballastlane-web
+npm install
+npm run dev
+```
+
+macOS / Linux (bash):
+```bash
+export VITE_API_URL='http://localhost:5000'
+cd web/ballastlane-web
+npm install
+npm run dev
+```
+
+También puedes crear un archivo `.env` o `.env.local` dentro de `web/ballastlane-web` con la línea:
+```
+VITE_API_URL=http://localhost:5000
+```
+
+Esto hará que la UI use la URL indicada para abrir Swagger desde el botón "API Docs" en la pantalla de login.
+
+---
+
+### Uso rápido de Swagger y ejemplos de API
+
+Si quieres probar rápidamente los endpoints y cómo autorizarte, aquí hay pasos y ejemplos útiles.
+
+1) Usar Swagger UI
+
+- Abre `http://localhost:5000` (o la URL que hayas configurado con `VITE_API_URL`).
+- Ejecuta `POST /api/auth/login` con el body JSON:
+
+```json
+{"username":"demo","password":"Demo@12345"}
+```
+
+- Copia el campo `token` de la respuesta.
+- Pulsa el botón **Authorize** (candado) en la esquina superior derecha de Swagger y pega:
+
+```
+Bearer <tu_token>
+```
+
+- Ejecuta `GET /api/tasks` desde Swagger — ahora devolverá tus tareas.
+
+2) PowerShell (login + obtener tasks)
+
+```powershell
+$r = Invoke-RestMethod -Uri 'http://localhost:5000/api/auth/login' -Method Post -ContentType 'application/json' -Body '{"username":"demo","password":"Demo@12345"}'
+$token = $r.token
+Invoke-RestMethod -Uri 'http://localhost:5000/api/tasks' -Headers @{ Authorization = "Bearer $token" }
+```
+
+3) curl (login + obtener tasks)
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d '{"username":"demo","password":"Demo@12345"}' | jq -r .token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/tasks
+```
+
+Nota: si tu API está en otra URL, sustituye `http://localhost:5000` por el valor de `VITE_API_URL`.
+
+
+## Release
+
+Prepare a release tag and push it to the remote. Do not tag until your working tree has the desired changes and you are ready to publish.
+
+Suggested (manual) steps to create an annotated tag locally and push it to GitHub:
+
+```bash
+# Bump versions / ensure working tree is ready
+git add -A
+git commit -m "chore(release): prepare v0.1.0"    # run only when ready
+git tag -a v0.1.0 -m "release: v0.1.0"
+git push origin v0.1.0
+```
+
+
 
 ## CI
 

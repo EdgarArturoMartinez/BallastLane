@@ -18,7 +18,7 @@ interface AuthState {
 interface AuthActions {
   login:    (data: LoginRequest)    => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
-  logout:   ()                      => void;
+  logout:   ()                      => Promise<void>;
   clearError: ()                    => void;
 }
 
@@ -90,10 +90,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Logout ────────────────────────────────────────────────────────────
-  const logout = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY);
-    tokenStore.clear();
-    setState({ user: null, isAuthenticated: false, isLoading: false, error: null });
+  const logout = useCallback(async () => {
+    try {
+      await authApi.signout();
+    } catch (e) {
+      // best-effort — ignore signout errors
+    } finally {
+      sessionStorage.removeItem(SESSION_KEY);
+      tokenStore.clear();
+      setState({ user: null, isAuthenticated: false, isLoading: false, error: null });
+    }
   }, []);
 
   const clearError = useCallback(() => {

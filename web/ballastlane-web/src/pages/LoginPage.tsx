@@ -8,6 +8,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ username: '', password: '' });
 
+  // API base used by UI links (can be overridden in dev with VITE_API_URL)
+  const apiBase = ((import.meta as any).env && (import.meta as any).env.VITE_API_URL) || 'http://localhost:5000';
+  const swaggerUrl = String(apiBase).replace(/\/$/, '') + '/';
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     clearError();
     setForm(f => ({ ...f, [e.target.name]: e.target.value }));
@@ -66,7 +70,24 @@ export default function LoginPage() {
           <span className="text-lg font-bold text-gray-900 dark:text-white">Ballastlane</span>
         </div>
 
-        <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700">
+        <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 relative">
+          {/* Elegant Swagger / API docs access for interviewers */}
+          <a
+            href={swaggerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open API (Swagger)"
+            aria-label="Open API (Swagger)"
+            className="absolute right-4 top-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-sm font-semibold shadow-lg hover:from-indigo-600 hover:to-violet-600 transition-transform transform hover:-translate-y-0.5"
+          >
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 2v6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M12 22v-6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M20 12H4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16 6.5L7.5 17" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            API Docs
+          </a>
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Sign in to your account to continue</p>
