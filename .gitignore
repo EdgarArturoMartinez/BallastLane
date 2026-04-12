@@ -1,8 +1,33 @@
-# Ignore everything
-*
+# ── .NET ────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
 
-# Except the checkpoint document
-!Arthur_Checkpoint_Exploration.md
+# ── Node / Frontend ─────────────────────────────────────
+node_modules/
+dist/
+.venv/
 
-# Keep .gitignore itself
-!.gitignore
+# ── IDE / OS ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Secrets ──────────────────────────────────────────────
+*.env
+appsettings.Production.json
+
+# ── Personal / AI working files (local reference only — never push to shared branches) ──
+docs/
+memories/
+scripts/
+Arthur_Checkpoint_Exploration.md
+
+# ── Personal / AI working files (never publish to shared branches) ──
+docs/
+memories/
+scripts/
+Arthur_Checkpoint_Exploration.md
+
