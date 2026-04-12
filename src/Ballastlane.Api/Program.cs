@@ -101,17 +101,26 @@ try
         });
     });
 
-    // ── CORS ──────────────────────────────────────────────────────────────
+    // ── CORS (safe defaults) ──────────────────────────────────────────────
     var allowedOrigins = builder.Configuration
         .GetSection("Cors:AllowedOrigins")
         .Get<string[]>() ?? Array.Empty<string>();
 
-    builder.Services.AddCors(options =>
-        options.AddPolicy("FrontendPolicy", policy =>
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials()));
+    // If no origins configured, use a conservative default in Development only.
+    if (allowedOrigins.Length == 0 && builder.Environment.IsDevelopment())
+    {
+        allowedOrigins = new[] { "http://localhost:5173" };
+    }
+
+    if (allowedOrigins.Length > 0)
+    {
+        builder.Services.AddCors(options =>
+            options.AddPolicy("FrontendPolicy", policy =>
+                policy.WithOrigins(allowedOrigins)
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials()));
+    }
 
     // ── Health checks ─────────────────────────────────────────────────────
     builder.Services.AddHealthChecks();
@@ -140,6 +149,25 @@ try
         {
             diag.Set("CorrelationId", ctx.Items.TryGetValue("CorrelationId", out var id) ? id : "n/a");
         };
+    });
+
+    // ── Production security: HSTS & HTTPS redirect ────────────────────────
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+        app.UseHttpsRedirection();
+    }
+
+    // ── Common security headers ──────────────────────────────────────────
+    app.Use(async (context, next) =>
+    {
+        var headers = context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "no-referrer";
+        headers["X-XSS-Protection"] = "1; mode=block";
+        headers["Content-Security-Policy"] = "default-src 'self'";
+        await next();
     });
 
     if (app.Environment.IsDevelopment())
