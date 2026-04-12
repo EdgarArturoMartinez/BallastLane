@@ -19,3 +19,15 @@ Thumbs.db
 *.env
 appsettings.Production.json
 
+# ── Personal / AI working files (local reference only — never push to shared branches) ──
+docs/
+memories/
+scripts/
+Arthur_Checkpoint_Exploration.md
+
+# ── Personal / AI working files (never publish to shared branches) ──
+docs/
+memories/
+scripts/
+Arthur_Checkpoint_Exploration.md
+
