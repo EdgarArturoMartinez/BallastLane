@@ -8,56 +8,45 @@ namespace Ballastlane.Infrastructure.Persistence.Repositories;
 
 /// <summary>
 /// ADO.NET adapter implementing IUserRepository.
-/// Parameterized queries throughout — OWASP SQL-Injection safe.
+/// SQL text is loaded from SqlQueries/*.sql (centralized, versionable).
+/// Execution is delegated to DbExecutor — no ADO.NET boilerplate here.
 /// </summary>
 public sealed class AdoUserRepository : IUserRepository
 {
-    private readonly SqlConnectionFactory _factory;
+    private readonly DbExecutor _db;
 
-    public AdoUserRepository(SqlConnectionFactory factory)
+    public AdoUserRepository(DbExecutor db)
     {
-        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
-    public async Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        var sql = SqlQueryLoader.Get("Users.GetById");
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        _db.QuerySingleOrDefaultAsync(
+            SqlQueryLoader.Get("Users.GetById"),
+            cmd => cmd.Parameters.AddWithValue("@id", id),
+            MapUser,
+            ct);
 
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@id", id);
+    public Task<User?> GetByUsernameAsync(string username, CancellationToken ct = default) =>
+        _db.QuerySingleOrDefaultAsync(
+            SqlQueryLoader.Get("Users.GetByUsername"),
+            cmd => cmd.Parameters.AddWithValue("@username", username),
+            MapUser,
+            ct);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? MapUser(reader) : null;
-    }
-
-    public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct = default)
-    {
-        var sql = SqlQueryLoader.Get("Users.GetByUsername");
-
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@username", username);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? MapUser(reader) : null;
-    }
-
-    public async Task CreateAsync(User user, CancellationToken ct = default)
-    {
-        var sql = SqlQueryLoader.Get("Users.Create");
-
-        await using var conn = await _factory.CreateOpenConnectionAsync(ct);
-        await using var cmd = new SqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("@id",           user.Id);
-        cmd.Parameters.AddWithValue("@username",     user.Username);
-        cmd.Parameters.AddWithValue("@email",        user.Email.Value);
-        cmd.Parameters.AddWithValue("@passwordHash", user.PasswordHash);
-        cmd.Parameters.AddWithValue("@salt",         user.Salt);
-        cmd.Parameters.AddWithValue("@role",         user.Role);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
+    public Task CreateAsync(User user, CancellationToken ct = default) =>
+        _db.ExecuteAsync(
+            SqlQueryLoader.Get("Users.Create"),
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@id",           user.Id);
+                cmd.Parameters.AddWithValue("@username",     user.Username);
+                cmd.Parameters.AddWithValue("@email",        user.Email.Value);
+                cmd.Parameters.AddWithValue("@passwordHash", user.PasswordHash);
+                cmd.Parameters.AddWithValue("@salt",         user.Salt);
+                cmd.Parameters.AddWithValue("@role",         user.Role);
+            },
+            ct);
 
     // ── Mapping ────────────────────────────────────────────────────────────
 
