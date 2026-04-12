@@ -7,11 +7,30 @@ This file provides short project guidelines that Copilot should consider automat
 - Architecture: Hexagonal / Clean Architecture (Ports & Adapters)
 - Data access: ADO.NET only (NO EF, NO Dapper, NO MediatR)
 - DB: SQL Server (use parameterized queries)
+- Layer order: Domain → Application → Infrastructure ← API (dependency rule points inward)
+- All passwords hashed with BCrypt.Net-Next; JWT Bearer tokens for auth
+
+## Database Schema (actual — `sql/migrations/0001_init.sql`)
+- **Users**: `Id` (PK), `Username` NVARCHAR(100) UNIQUE, `Email` NVARCHAR(320) UNIQUE, `PasswordHash` NVARCHAR(512), `Salt` NVARCHAR(128), `Role` NVARCHAR(50) DEFAULT `'User'`
+- **Tasks**: `Id` (PK), `Title` NVARCHAR(200), `Description` NVARCHAR(2000), `Status` NVARCHAR(50) DEFAULT `'Todo'` (values: `'Todo'`,`'InProgress'`,`'Done'`), `DueDate` DATETIME2 NULL, `OwnerUserId` UNIQUEIDENTIFIER FK→Users.Id
+- ⚠️ FK column is **`OwnerUserId`** (not `UserId`). Status is **NVARCHAR** (not INT).
+- Migration tracking: `__Migrations` table auto-created by `DbMigrator` (not in SQL files)
+- Demo seed (`0002_seed.sql`): user `demo@ballastlane.dev`, role `Admin`, pwd `Demo@12345`
+
+## Frontend Stack
+- React 19 + Vite + TypeScript 6
+- Tailwind CSS 3.4 + react-hot-toast 2.4 + @heroicons/react 2.0
+- Config: `web/ballastlane-web/tailwind.config.cjs`, `postcss.config.cjs`
+- Dockerfile: `npm install --no-audit` (no npm ci — no package-lock committed)
+- nginx proxies `/api/*` → API container (no CORS needed)
 
 ## Common Commands
 - Build: `dotnet build`
 - Test: `dotnet test`
-- Run (local backend): `docker-compose up --build`
+- Run (full stack): `docker compose up --build -d`
+- Frontend dev (local): `cd web/ballastlane-web && npm run dev`
+- URLs: API `http://localhost:5000` | Frontend `http://localhost:5173`
+- Demo login: `demo` / `Demo@12345`
 
 ## Testing Policy
 - Use `xUnit` + `Moq`. Prefer TDD: write failing tests first, then implement.
