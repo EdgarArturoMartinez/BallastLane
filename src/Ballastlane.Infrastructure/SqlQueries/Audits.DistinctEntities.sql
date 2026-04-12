@@ -1,0 +1,1 @@
+SELECT DISTINCT Entity FROM Audits ORDER BY Entity

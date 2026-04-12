@@ -2,6 +2,7 @@ using Ballastlane.Application.DTOs;
 using Ballastlane.Application.Ports;
 using Microsoft.Data.SqlClient;
 using System.Text.Json;
+using Ballastlane.Infrastructure.SqlQueries;
 
 namespace Ballastlane.Infrastructure.Persistence.Repositories;
 
@@ -16,11 +17,7 @@ public sealed class AdoAuditRepository : IAuditRepository
 
     public async Task<IEnumerable<AuditDto>> ListAsync(CancellationToken ct = default)
     {
-        const string sql = """
-            SELECT Id, Entity, EntityId, Action, UserId, Username, OldValues, NewValues, CreatedAt
-            FROM Audits
-            ORDER BY CreatedAt DESC
-            """;
+        var sql = SqlQueryLoader.Get("Audits.List");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -109,7 +106,7 @@ public sealed class AdoAuditRepository : IAuditRepository
 
     public async Task<IEnumerable<string>> ListDistinctEntitiesAsync(CancellationToken ct = default)
     {
-        const string sql = "SELECT DISTINCT Entity FROM Audits ORDER BY Entity";
+        var sql = SqlQueryLoader.Get("Audits.DistinctEntities");
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -124,7 +121,7 @@ public sealed class AdoAuditRepository : IAuditRepository
 
     public async Task<IEnumerable<string>> ListDistinctActionsAsync(CancellationToken ct = default)
     {
-        const string sql = "SELECT DISTINCT Action FROM Audits ORDER BY Action";
+        var sql = SqlQueryLoader.Get("Audits.DistinctActions");
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -147,10 +144,7 @@ public sealed class AdoAuditRepository : IAuditRepository
         object? newValues,
         CancellationToken ct = default)
     {
-        const string sql = """
-            INSERT INTO Audits (Entity, EntityId, Action, UserId, Username, OldValues, NewValues)
-            VALUES (@entity, @entityId, @action, @userId, @username, @oldValues, @newValues)
-            """;
+        var sql = SqlQueryLoader.Get("Audits.Insert");
 
         var oldJson = oldValues is null ? null : JsonSerializer.Serialize(oldValues);
         var newJson = newValues is null ? null : JsonSerializer.Serialize(newValues);

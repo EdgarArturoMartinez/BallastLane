@@ -1,6 +1,7 @@
 using Ballastlane.Application.Ports;
 using Ballastlane.Domain.Entities;
 using Microsoft.Data.SqlClient;
+using Ballastlane.Infrastructure.SqlQueries;
 
 namespace Ballastlane.Infrastructure.Persistence.Repositories;
 
@@ -26,11 +27,7 @@ public sealed class AdoTaskRepository : ITaskRepository
 
     public async Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        const string sql = """
-            SELECT Id, Title, Description, Status, DueDate, OwnerUserId
-            FROM Tasks
-            WHERE Id = @id
-            """;
+        var sql = SqlQueryLoader.Get("Tasks.GetById");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -42,11 +39,7 @@ public sealed class AdoTaskRepository : ITaskRepository
 
     public async Task<IEnumerable<TaskItem>> ListAsync(CancellationToken ct = default)
     {
-        const string sql = """
-            SELECT Id, Title, Description, Status, DueDate, OwnerUserId
-            FROM Tasks
-            ORDER BY Title
-            """;
+        var sql = SqlQueryLoader.Get("Tasks.List");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -61,10 +54,7 @@ public sealed class AdoTaskRepository : ITaskRepository
 
     public async Task CreateAsync(TaskItem task, CancellationToken ct = default)
     {
-        const string sql = """
-            INSERT INTO Tasks (Id, Title, Description, Status, DueDate, OwnerUserId)
-            VALUES (@id, @title, @description, @status, @dueDate, @ownerUserId)
-            """;
+        var sql = SqlQueryLoader.Get("Tasks.Create");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -80,14 +70,7 @@ public sealed class AdoTaskRepository : ITaskRepository
 
     public async Task UpdateAsync(TaskItem task, CancellationToken ct = default)
     {
-        const string sql = """
-            UPDATE Tasks
-            SET Title       = @title,
-                Description = @description,
-                Status      = @status,
-                DueDate     = @dueDate
-            WHERE Id = @id
-            """;
+        var sql = SqlQueryLoader.Get("Tasks.Update");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -102,7 +85,7 @@ public sealed class AdoTaskRepository : ITaskRepository
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
-        const string sql = "DELETE FROM Tasks WHERE Id = @id";
+        var sql = SqlQueryLoader.Get("Tasks.Delete");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);

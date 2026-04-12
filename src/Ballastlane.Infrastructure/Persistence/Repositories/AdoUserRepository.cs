@@ -2,6 +2,7 @@ using Ballastlane.Application.Ports;
 using Ballastlane.Domain.Entities;
 using Ballastlane.Domain.ValueObjects;
 using Microsoft.Data.SqlClient;
+using Ballastlane.Infrastructure.SqlQueries;
 
 namespace Ballastlane.Infrastructure.Persistence.Repositories;
 
@@ -20,11 +21,7 @@ public sealed class AdoUserRepository : IUserRepository
 
     public async Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        const string sql = """
-            SELECT Id, Username, Email, PasswordHash, Salt, Role
-            FROM Users
-            WHERE Id = @id
-            """;
+        var sql = SqlQueryLoader.Get("Users.GetById");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -36,11 +33,7 @@ public sealed class AdoUserRepository : IUserRepository
 
     public async Task<User?> GetByUsernameAsync(string username, CancellationToken ct = default)
     {
-        const string sql = """
-            SELECT Id, Username, Email, PasswordHash, Salt, Role
-            FROM Users
-            WHERE Username = @username
-            """;
+        var sql = SqlQueryLoader.Get("Users.GetByUsername");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
@@ -52,10 +45,7 @@ public sealed class AdoUserRepository : IUserRepository
 
     public async Task CreateAsync(User user, CancellationToken ct = default)
     {
-        const string sql = """
-            INSERT INTO Users (Id, Username, Email, PasswordHash, Salt, Role)
-            VALUES (@id, @username, @email, @passwordHash, @salt, @role)
-            """;
+        var sql = SqlQueryLoader.Get("Users.Create");
 
         await using var conn = await _factory.CreateOpenConnectionAsync(ct);
         await using var cmd = new SqlCommand(sql, conn);
