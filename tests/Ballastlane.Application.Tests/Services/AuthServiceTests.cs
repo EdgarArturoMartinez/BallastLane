@@ -17,11 +17,21 @@ public class AuthServiceTests
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IPasswordHasher> _hasherMock = new();
     private readonly Mock<IJwtTokenGenerator> _jwtMock = new();
+    private readonly Mock<IAuditRepository> _auditRepoMock = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
     {
-        _sut = new AuthService(_userRepoMock.Object, _hasherMock.Object, _jwtMock.Object);
+        // Audit calls are fire-and-forget (exceptions swallowed); return completed task by default
+        _auditRepoMock
+            .Setup(r => r.InsertAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<Guid?>(), It.IsAny<string?>(),
+                It.IsAny<object?>(), It.IsAny<object?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _sut = new AuthService(_userRepoMock.Object, _hasherMock.Object, _jwtMock.Object, _auditRepoMock.Object);
     }
 
     // ── RegisterAsync ──────────────────────────────────────────────────────
