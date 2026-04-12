@@ -28,6 +28,7 @@ public sealed class BallastlaneWebApplicationFactory : WebApplicationFactory<Pro
     // Expose fakes so tests can pre-seed or inspect state
     public FakeTaskRepository Tasks { get; } = new();
     public FakeUserRepository Users { get; } = new();
+    public FakeAuditRepository Audits { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -39,11 +40,13 @@ public sealed class BallastlaneWebApplicationFactory : WebApplicationFactory<Pro
             // Remove the ADO.NET repository implementations registered by AddInfrastructure
             services.RemoveAll<ITaskRepository>();
             services.RemoveAll<IUserRepository>();
+            services.RemoveAll<IAuditRepository>();
 
             // Register in-memory fakes (singleton so state persists across requests in one test)
             // Safe: TaskService is Scoped and a scoped service consuming a singleton is legal in DI
             services.AddSingleton<ITaskRepository>(Tasks);
             services.AddSingleton<IUserRepository>(Users);
+            services.AddSingleton<IAuditRepository>(Audits);
         });
     }
 }

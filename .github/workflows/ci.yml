@@ -32,5 +32,6 @@ jobs:
       - name: Build
         run: dotnet build Ballastlane.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test Ballastlane.sln --configuration Release --no-build --verbosity normal
+      - name: Test (exclude integration)
+        # Integration tests require SQL Server; skip them in CI by default.
+        run: dotnet test Ballastlane.sln --configuration Release --no-build --verbosity normal --filter "FullyQualifiedName!~Integration"

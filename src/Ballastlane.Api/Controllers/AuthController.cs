@@ -1,5 +1,8 @@
 using Ballastlane.Application.DTOs;
 using Ballastlane.Application.Services;
+using Ballastlane.Application.Ports;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using Ballastlane.Domain.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,10 +21,12 @@ namespace Ballastlane.Api.Controllers;
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IAuditRepository _auditRepository;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IAuditRepository auditRepository)
     {
         _authService = authService;
+        _auditRepository = auditRepository;
     }
 
     /// <summary>Registers a new user account.</summary>
@@ -50,6 +55,33 @@ public sealed class AuthController : ControllerBase
             // Return generic 401 — never reveal whether username or password was wrong (OWASP A07)
             return Unauthorized(new { error = "Invalid username or password." });
         }
+    }
+
+    /// <summary>Records a sign-out event for the current authenticated user.</summary>
+    [HttpPost("signout")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Signout(CancellationToken ct)
+    {
+        // Try to read user id from JWT 'sub' claim, fall back to name identifier
+        var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                          ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var username = User.Identity?.Name ?? User.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value;
+
+        if (Guid.TryParse(userIdClaim, out var userId))
+        {
+            try
+            {
+                if (_auditRepository is not null)
+                    await _auditRepository.InsertAsync("Users", userId.ToString(), "SignedOut", userId, username, null, null, ct);
+            }
+            catch
+            {
+                // swallow — audit failures must not block signout
+            }
+        }
+
+        return NoContent();
     }
 
     /// <summary>Public endpoint — used to smoke-test that the API is reachable.</summary>
