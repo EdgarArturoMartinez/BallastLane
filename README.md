@@ -1,6 +1,6 @@
 # Ballastlane — Task Management API
 
-[![CI](https://github.com/arturo-martinez/Ballastlane/actions/workflows/ci.yml/badge.svg)](https://github.com/arturo-martinez/Ballastlane/actions/workflows/ci.yml)
+[![CI](https://github.com/EdgarArturoMartinez/BallastLane/actions/workflows/ci.yml/badge.svg)](https://github.com/EdgarArturoMartinez/BallastLane/actions/workflows/ci.yml)
 
 Full-stack task management application built as a .NET Technical Interview exercise.
 
@@ -97,3 +97,48 @@ GitHub Actions runs on every push/PR to `main`, `dev`, and `qa`:
 - `dotnet restore`
 - `dotnet build --configuration Release`
 - `dotnet test --configuration Release`
+
+---
+
+## GenAI Development Approach
+
+**Tool used:** GitHub Copilot (Agent Mode / Claude Sonnet 4.6)
+
+**Primary prompt template used to scaffold the solution:**
+
+```
+You are a senior .NET architect. Scaffold a production-quality ASP.NET Core 8 Web API
+following Hexagonal Architecture (Ports & Adapters / Clean Architecture).
+
+Constraints:
+- ADO.NET only — NO Entity Framework, NO Dapper, NO MediatR
+- SQL Server with parameterized queries (OWASP compliance)
+- xUnit + Moq for all layers — TDD approach (failing test first)
+- JWT Bearer authentication with PBKDF2 password hashing
+- The domain must include: TaskItem (title, description, status, due_date),
+  User, Email value object, DomainException
+- Expose: POST /api/auth/register, POST /api/auth/login,
+  full CRUD /api/tasks, GET /api/tasks/public/stats (no auth)
+- Projects: Domain / Application / Infrastructure / API / Tests (4 test projects)
+
+Generate the solution structure with all interfaces (ports), implementations
+(adapters), DTOs, and a numbered SQL migration runner.
+```
+
+**What was validated and corrected:**
+
+| AI Output | Human Validation | Correction made |
+|-----------|------------------|-----------------|
+| `node:18` in Web Dockerfile | Panel would get build error — Vite 8 requires Node ≥ 20.19 | Changed to `node:22-alpine` |
+| SQL Server 2022 healthcheck used `mssql-tools` path | Path changed to `mssql-tools18` in 2022 image; containers never became healthy | Fixed path + added `-C` flag |
+| `DbMigrator` connected directly to `BallastlaneDb` | Fresh container fails — DB doesn't exist yet | Added `EnsureDatabaseExistsAsync()` via `master` first |
+| `0001_init.sql` created `__Migrations` table | Migrator creates it programmatically — conflict on `docker compose up` | Removed duplicate DDL from SQL script |
+| No `nginx.conf` for the web container | React SPA returned 404 on browser refresh; `/api` calls had no proxy | Created `nginx.conf` with `try_files` + `proxy_pass` |
+| Architecture selection not deliberated | AI defaulted to layered architecture; 4 options were evaluated in a decision matrix | Hexagonal chosen after explicit trade-off analysis |
+| No logging strategy in initial proposal | Clean Architecture requires cross-cutting concerns to be designed explicitly | Added Serilog with `ILogger<T>` abstraction across all layers (Domain excluded) |
+
+**Critical thinking demonstrated:**
+- Every architectural choice (ADO.NET, Hexagonal, Docker Compose) was challenged before adoption — not accepted blindly.
+- AI-generated Docker configuration had 5 runtime bugs that only surfaced during `docker compose up --build` — all caught and fixed through systematic validation.
+- The human enforced production constraint: "The domain layer must never log" — AI had logging in domain entities in early drafts.
+- Prompt engineering was iterative: initial scaffolding prompt was refined to add specific constraints (PBKDF2, numbered migration runner, `ITaskOwnershipValidator`) after reviewing the first output.
