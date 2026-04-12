@@ -1,11 +1,6 @@
 -- Migration 0001: Initial schema
--- Creates __Migrations tracking table, Tasks, and Users tables.
-
-CREATE TABLE __Migrations (
-    ScriptName  NVARCHAR(260) NOT NULL PRIMARY KEY,
-    AppliedAt   DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME(),
-    Checksum    NVARCHAR(64)  NOT NULL
-);
+-- Creates Users and Tasks tables.
+-- NOTE: The __Migrations tracking table is created by DbMigrator itself; it is NOT part of this script.
 
 CREATE TABLE Users (
     Id           UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),

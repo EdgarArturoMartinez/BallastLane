@@ -9,10 +9,12 @@ services:
     ports:
       - "1433:1433"
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Your_password123!' -Q 'SELECT 1' || exit 1"]
+      # SQL Server 2022 images ship sqlcmd under mssql-tools18; -C trusts the self-signed cert.
+      # Fallback to the legacy path for older images just in case.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_password123!' -Q 'SELECT 1' -C 2>/dev/null || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Your_password123!' -Q 'SELECT 1' 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 15
 
   api:
     build:

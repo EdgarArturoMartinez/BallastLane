@@ -1,12 +1,12 @@
 # DAILY_CONTEXT.md
 
 
-Summary: Completed frontend and backend work; added Docker scaffold and EOD docs.
-- What I did today: 1) Finalized React+Vite frontend build 2) Added Dockerfiles and `docker-compose.yml` 3) Created EOD / memory files and updated repo conventions
-- Files changed: src/Ballastlane.Api/Dockerfile, web/ballastlane-web/Dockerfile, docker-compose.yml, .github/copilot-instructions.md, docs/DAILY_CONTEXT.md, memories/repo/project-conventions.md, Arthur_Checkpoint_Exploration.md
-- Decisions made: Keep repo docs in English; canonical conventions saved to `/memories/repo/project-conventions.md`; prefer Docker compose for demo runs
-- Blockers: Docker Desktop requires a system restart before starting containers on this machine
-- Next (top 3 tasks): 1) Restart Docker Desktop and run `docker-compose up --build -d` to validate stack 2) Review runtime logs and fix any environment-specific issues 3) Add a minimal GitHub Actions workflow to run `dotnet build` and `dotnet test`
+Summary: Phase 7 (Containerization) completed and validated end-to-end; all 3 containers running.
+- What I did today: 1) Diagnosed and fixed 5 Docker gaps (nginx.conf missing, Node 18→22, SQL Server 2022 healthcheck, DB CREATE missing, __Migrations duplicate) 2) Validated `docker compose up --build -d` — all services healthy 3) Confirmed JWT login + Tasks CRUD + nginx proxy through port 5173 working
+- Files changed: web/ballastlane-web/nginx.conf (new), web/ballastlane-web/Dockerfile (node:22-alpine + nginx.conf), docker-compose.yml (healthcheck fix), src/Ballastlane.Infrastructure/Persistence/DbMigrator.cs (EnsureDatabaseExistsAsync), sql/migrations/0001_init.sql (removed duplicate __Migrations DDL), docs/12_PHASE_ROADMAP.md, docs/DAILY_CONTEXT.md
+- Decisions made: nginx proxies /api to API container (avoids CORS complexity); DbMigrator creates DB via master connection before running scripts
+- Blockers: None — stack fully operational
+- Next (top 3 tasks): 1) Add `.github/workflows/ci.yml` (dotnet build + test on PRs) — Phase 9 2) Update README with Run Locally section + demo credentials — Phase 11 3) Remove `version:` from docker-compose.yml (obsolete warning)
 
 ---
 

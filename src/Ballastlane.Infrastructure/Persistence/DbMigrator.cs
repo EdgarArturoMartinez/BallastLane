@@ -34,6 +34,10 @@ public sealed class DbMigrator
 
     public async Task MigrateAsync(CancellationToken ct = default)
     {
+        // Step 1: ensure the target database exists (connects to master first).
+        await EnsureDatabaseExistsAsync(ct);
+
+        // Step 2: proceed with schema migrations inside the target database.
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(ct);
 
@@ -144,5 +148,40 @@ public sealed class DbMigrator
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Connects to the 'master' database and creates the target database if it doesn't exist.
+    /// This must run before any other migration step because those steps connect directly to
+    /// the target database, which may not exist on a fresh container.
+    /// </summary>
+    private async Task EnsureDatabaseExistsAsync(CancellationToken ct)
+    {
+        var builder = new SqlConnectionStringBuilder(_connectionString);
+        var targetDb = builder.InitialCatalog;
+
+        // Validate: database name must only contain safe characters to prevent injection.
+        if (string.IsNullOrWhiteSpace(targetDb) ||
+            !System.Text.RegularExpressions.Regex.IsMatch(targetDb, @"^[\w\-]+$"))
+        {
+            throw new InvalidOperationException(
+                $"The database name '{targetDb}' contains invalid characters.");
+        }
+
+        builder.InitialCatalog = "master";
+
+        await using var masterConn = new SqlConnection(builder.ConnectionString);
+        await masterConn.OpenAsync(ct);
+
+        // Use QUOTENAME to safely delimit the database name in the DDL statement.
+        var sql = $"""
+            IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'{targetDb}')
+                CREATE DATABASE [{targetDb}]
+            """;
+
+        await using var cmd = new SqlCommand(sql, masterConn);
+        await cmd.ExecuteNonQueryAsync(ct);
+
+        _logger.LogInformation("Database '{TargetDb}' ensured.", targetDb);
     }
 }
