@@ -21,7 +21,7 @@ docker compose up --build -d
 
 One-step start (recommended for interview/demo)
 
-Interviewers can start the full stack with a single, canonical command from the repository root. This builds the images, starts services and leaves the stack running:
+You can start the full stack with a single, canonical command from the repository root. This builds the images, starts services and leaves the stack running:
 
 ```powershell
 docker compose up --build -d
@@ -44,6 +44,36 @@ After the command completes, the services should be reachable at:
 To stop:
 ```bash
 docker compose down
+```
+
+---
+
+## API Endpoints
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/auth/register` | No | Register new user |
+| POST | `/api/auth/login` | No | Login, returns JWT |
+| GET | `/api/tasks` | JWT | List own tasks |
+| POST | `/api/tasks` | JWT | Create task |
+| GET | `/api/tasks/{id}` | JWT | Get task by ID |
+| PUT | `/api/tasks/{id}` | JWT | Update task |
+| DELETE | `/api/tasks/{id}` | JWT | Delete task |
+| GET | `/api/tasks/public/stats` | No | Public stats (no auth) |
+| GET | `/health` | No | Health check |
+| GET | `/api/audit` | JWT | Returns audit entries (protected) |
+
+---
+
+## Architecture
+
+```
+Driving Adapters       →  API Controllers, React SPA
+Input Ports            →  ITaskService, IAuthService
+Application Services   →  TaskService, AuthService
+Domain Model           →  TaskItem, User, Value Objects, Business Rules
+Output Ports           →  ITaskRepository, IUserRepository, IPasswordHasher, IJwtTokenGenerator
+Driven Adapters        →  ADO.NET (SqlServer), PBKDF2 hasher, JWT generator
 ```
 
 ---
@@ -82,36 +112,6 @@ $env:JWT_SECRET = "<a-secret-key-of-at-least-32-chars>"
 $env:SQLSERVER_INTEGRATION_CONNSTR = "Server=localhost,1433;User Id=sa;Password=$env:SA_PASSWORD;TrustServerCertificate=True;"
 
 dotnet run --project src/Ballastlane.Api
-```
-
----
-
-## API Endpoints
-
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| POST | `/api/auth/register` | No | Register new user |
-| POST | `/api/auth/login` | No | Login, returns JWT |
-| GET | `/api/tasks` | JWT | List own tasks |
-| POST | `/api/tasks` | JWT | Create task |
-| GET | `/api/tasks/{id}` | JWT | Get task by ID |
-| PUT | `/api/tasks/{id}` | JWT | Update task |
-| DELETE | `/api/tasks/{id}` | JWT | Delete task |
-| GET | `/api/tasks/public/stats` | No | Public stats (no auth) |
-| GET | `/health` | No | Health check |
-| GET | `/api/audit` | JWT | Returns audit entries (protected) |
-
----
-
-## Architecture
-
-```
-Driving Adapters       →  API Controllers, React SPA
-Input Ports            →  ITaskService, IAuthService
-Application Services   →  TaskService, AuthService
-Domain Model           →  TaskItem, User, Value Objects, Business Rules
-Output Ports           →  ITaskRepository, IUserRepository, IPasswordHasher, IJwtTokenGenerator
-Driven Adapters        →  ADO.NET (SqlServer), PBKDF2 hasher, JWT generator
 ```
 
 ---
@@ -194,7 +194,7 @@ Bearer <your_token>
 
 5. Call `GET /api/tasks` — it will now return your tasks.
 
-2) PowerShell (login + obtener tasks)
+2) PowerShell (login + get tasks)
 
 ```powershell
 $r = Invoke-RestMethod -Uri 'http://localhost:5000/api/auth/login' -Method Post -ContentType 'application/json' -Body '{"username":"demo","password":"Demo@12345"}'
@@ -202,14 +202,14 @@ $token = $r.token
 Invoke-RestMethod -Uri 'http://localhost:5000/api/tasks' -Headers @{ Authorization = "Bearer $token" }
 ```
 
-3) curl (login + obtener tasks)
+3) curl (login + get tasks)
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d '{"username":"demo","password":"Demo@12345"}' | jq -r .token)
 curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/tasks
 ```
 
-Nota: si tu API está en otra URL, sustituye `http://localhost:5000` por el valor de `VITE_API_URL`.
+Note: if your API is hosted at a different URL, replace `http://localhost:5000` with the value of `VITE_API_URL`.
 
 
 ## Release
