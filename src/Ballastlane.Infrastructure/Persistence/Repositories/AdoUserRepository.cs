@@ -1,3 +1,4 @@
+using System.Data;
 using Ballastlane.Application.Ports;
 using Ballastlane.Domain.Entities;
 using Ballastlane.Domain.ValueObjects;
@@ -23,14 +24,14 @@ public sealed class AdoUserRepository : IUserRepository
     public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.QuerySingleOrDefaultAsync(
             SqlQueryLoader.Get("Users.GetById"),
-            cmd => cmd.Parameters.AddWithValue("@id", id),
+            cmd => cmd.Parameters.Add(new SqlParameter("@id", SqlDbType.UniqueIdentifier) { Value = id }),
             MapUser,
             ct);
 
     public Task<User?> GetByUsernameAsync(string username, CancellationToken ct = default) =>
         _db.QuerySingleOrDefaultAsync(
             SqlQueryLoader.Get("Users.GetByUsername"),
-            cmd => cmd.Parameters.AddWithValue("@username", username),
+            cmd => cmd.Parameters.Add(new SqlParameter("@username", SqlDbType.NVarChar, 100) { Value = username }),
             MapUser,
             ct);
 
@@ -39,12 +40,12 @@ public sealed class AdoUserRepository : IUserRepository
             SqlQueryLoader.Get("Users.Create"),
             cmd =>
             {
-                cmd.Parameters.AddWithValue("@id",           user.Id);
-                cmd.Parameters.AddWithValue("@username",     user.Username);
-                cmd.Parameters.AddWithValue("@email",        user.Email.Value);
-                cmd.Parameters.AddWithValue("@passwordHash", user.PasswordHash);
-                cmd.Parameters.AddWithValue("@salt",         user.Salt);
-                cmd.Parameters.AddWithValue("@role",         user.Role);
+                cmd.Parameters.Add(new SqlParameter("@id",           SqlDbType.UniqueIdentifier) { Value = user.Id });
+                cmd.Parameters.Add(new SqlParameter("@username",     SqlDbType.NVarChar, 100)  { Value = user.Username });
+                cmd.Parameters.Add(new SqlParameter("@email",        SqlDbType.NVarChar, 320)  { Value = user.Email.Value });
+                cmd.Parameters.Add(new SqlParameter("@passwordHash", SqlDbType.NVarChar, 512)  { Value = user.PasswordHash });
+                cmd.Parameters.Add(new SqlParameter("@salt",         SqlDbType.NVarChar, 128)  { Value = user.Salt });
+                cmd.Parameters.Add(new SqlParameter("@role",         SqlDbType.NVarChar, 50)   { Value = user.Role });
             },
             ct);
 
