@@ -1313,7 +1313,7 @@ If any step fails → isolate root cause → fix → restart loop
 
 ## 9. Development Phases Roadmap
 
-> Single source of truth for all project phases. `docs/12_PHASE_ROADMAP.md` has been deleted — this section is the canonical reference.
+> Single source of truth for all project phases. 
 
 | # | Phase | Status | Date |
 |---|-------|--------|------|
@@ -1329,7 +1329,7 @@ If any step fails → isolate root cause → fix → restart loop
 | 9 | CI Pipeline (GitHub Actions — build + test on PRs) | ✅ Done | 2026-04-11 |
 | 10 | Hardening (security headers, HSTS, prod compose) | ✅ Done (minimal) | 2026-04-11 |
 | 11 | Documentation & Release (README, demo creds, release) | 🔄 In Progress | 2026-04-12 |
-| 12 | E2E Tests (Playwright or Cypress) | ⬜ Pending | TBD |
+
 
 ### Phase Summaries
 
@@ -1394,14 +1394,12 @@ If any step fails → isolate root cause → fix → restart loop
 - Security headers: HSTS, X-Content-Type-Options, X-Frame-Options, CSP in `Program.cs`.
 - `docker-compose.prod.yml`: non-root user, read-only filesystem.
 
-**Phase 11 — Documentation & Release** _(in progress)_
+**Phase 11 — Documentation & Release** 
 - README updated with Run Locally (Docker) + manual setup + GenAI narrative.
 - Demo: `demo` / `Demo@12345` (email: `demo@ballastlane.dev`, role: `Admin`).
 - Endpoints: API `http://localhost:5000` | Frontend `http://localhost:5173`.
 
-**Phase 12 — E2E Tests** _(pending)_
-- Playwright (preferred) or Cypress for login → tasks CRUD flow.
-- Pending user confirmation before implementation.
+
 
 ---
 
@@ -1502,34 +1500,3 @@ public class DatabaseInitializer
  - ❌ No Docker `entrypoint` scripts — keeps SQL Server container vanilla (official image, no custom Dockerfile).
 
 
----
-
-### Discussion 10: Panel Q&A Preparation — GenAI Fluency Questions
-
-> This discussion prepares specific answers to the most likely panel questions about GenAI tool usage.
-
-**Q: "What GenAI tool did you use and how?"**
-> I used GitHub Copilot in Agent Mode (Claude Sonnet 4.6) throughout the entire project — from architecture exploration to code generation to Docker debugging. I used it as a pair programmer: I drove the requirements and constraints; Copilot generated implementation drafts that I validated, challenged, and corrected. Every architectural decision was made after explicit evaluation of alternatives, not by accepting the AI's first suggestion.
-
-**Q: "Can you show me the prompt you used to generate the API?"**
-> _(Point to the prompt in Discussion 9 or the README GenAI section)_
-> The key discipline was constraint-first prompting: instead of asking for a generic API, I specified every constraint upfront — ADO.NET only, no BCrypt, numbered migration runner, task ownership enforcement. This reduced correction rounds from many to almost none for the core logic.
-
-**Q: "How did you validate the AI's output?"**
-> I used a 4-gate validation loop: (1) `dotnet build` — 0 errors/warnings; (2) `dotnet test` — all 92 tests green; (3) `docker compose up --build` + log inspection; (4) HTTP smoke tests — health, login, tasks. The Docker validation step caught 5 bugs that were invisible in code review: wrong Node version, wrong sqlcmd path, missing DB creation, duplicate DDL, missing nginx config. None would have been caught by just reading the code.
-
-**Q: "Did you have to correct or improve the AI output? Give an example."**
-> Yes — multiple times. Most impactful: the AI generated a `DbMigrator` that connected directly to `BallastlaneDb` on startup. This failed silently on a fresh container because the database hadn't been created yet. I diagnosed it from the API container logs (`Login failed for user 'sa'`), traced it to the cold-start scenario the AI had never considered, and added an `EnsureDatabaseExistsAsync()` method that first connects via `master`, creates the DB if missing, then proceeds with migrations. Small fix, fundamental reliability improvement.
-
-**Q: "How did you handle edge cases?"**
-> Three specific examples: (1) **Task ownership** — added `ITaskOwnershipValidator` to ensure a user can't read or modify another user's tasks — the AI's initial draft had no ownership check; (2) **JWT `ClockSkew=Zero`** — set explicitly so tokens expire exactly when expected, not 5 minutes later (the ASP.NET default); (3) **Migration idempotency** — every SQL script uses `IF NOT EXISTS` guards, so `docker compose up` can be run multiple times without errors.
-
-**Q: "What would you do differently if you had more time?"**
-> I'd add a PostgreSQL adapter behind the same `ITaskRepository` port to demonstrate that the Hexagonal Architecture truly allows swapping the database without touching domain or application code. I'd also add integration tests using Testcontainers (SQL Server in a Docker container during CI). Both are architectural capabilities that exist now — just not implemented because they weren't in scope.
-
-**Q: "Is this project production-ready?"**
-> It's production-structured, not production-deployed. The architecture separates concerns correctly; secrets come from environment variables; SQL uses parameterized queries; passwords use PBKDF2 with salt; JWT has zero clock skew; CI runs on every PR. What's missing for true production: TLS termination, secrets management (Azure Key Vault / AWS Secrets Manager), rate limiting, distributed tracing, and horizontal scaling configuration. I intentionally kept those out of scope to match the exercise requirements — but I can design any of them because the port/adapter boundaries are already in place.
-
----
-
-*Phases 0–10 implemented and validated. All 92 tests passing. Full Docker stack operational. CI green. Branch `building-solution-webapi` merged to `main` via `dev` → `qa` → `main` PRs.*
