@@ -27,8 +27,10 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
     public DatabaseFixture()
     {
-        _masterConnStr = Environment.GetEnvironmentVariable("SQLSERVER_INTEGRATION_CONNSTR")
-            ?? "Server=localhost,1433;User Id=sa;Password=Your_password123;TrustServerCertificate=True;";
+        _masterConnStr = Environment.GetEnvironmentVariable("SQLSERVER_INTEGRATION_CONNSTR");
+        if (string.IsNullOrWhiteSpace(_masterConnStr))
+            throw new InvalidOperationException(
+                "SQLSERVER_INTEGRATION_CONNSTR is not set. Set it to a valid SQL Server connection string (see .env.example). To run integration tests locally you can set SQLSERVER_INTEGRATION_CONNSTR or set SA_PASSWORD and use docker-compose with a .env file.");
     }
 
     public async Task InitializeAsync()

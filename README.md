@@ -50,18 +50,38 @@ docker compose down
 
 ## Run Locally (manual — requires .NET 8 SDK + SQL Server)
 
-```bash
-# 1. Set connection string
-export ConnectionStrings__DefaultConnection="Server=localhost,1433;Database=BallastlaneDb;User Id=sa;Password=<your-sa-password>;TrustServerCertificate=True;"
-export Jwt__Secret="<a-secret-key-of-at-least-32-chars>"
-export Jwt__Issuer="ballastlane-api"
-export Jwt__Audience="ballastlane-client"
+Set secrets via environment variables or a local `.env` file (copy `.env.example` and edit values).
 
-# 2. Run API (applies migrations + seed on startup)
+Example using a local `.env` (recommended):
+
+```bash
+# Copy the example and edit the values (do not commit your .env)
+cp .env.example .env
+# Edit .env and set SA_PASSWORD and JWT_SECRET (and optionally SQLSERVER_INTEGRATION_CONNSTR)
+```
+
+Example (Linux / macOS) using environment variables directly:
+
+```bash
+export SA_PASSWORD="<your-sa-password>"
+export JWT_SECRET="<a-secret-key-of-at-least-32-chars>"
+export SQLSERVER_INTEGRATION_CONNSTR="Server=localhost,1433;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+
+# Run API (applies migrations + seed on startup)
 dotnet run --project src/Ballastlane.Api
 
-# 3. Run frontend (separate shell)
+# Run frontend (separate shell)
 cd web/ballastlane-web && npm install && npm run dev
+```
+
+Windows (PowerShell) example:
+
+```powershell
+$env:SA_PASSWORD = "<your-sa-password>"
+$env:JWT_SECRET = "<a-secret-key-of-at-least-32-chars>"
+$env:SQLSERVER_INTEGRATION_CONNSTR = "Server=localhost,1433;User Id=sa;Password=$env:SA_PASSWORD;TrustServerCertificate=True;"
+
+dotnet run --project src/Ballastlane.Api
 ```
 
 ---
@@ -127,9 +147,9 @@ Notes:
 
 ---
 
-### Configurar la URL del API para la UI (opcional)
+### Configure the API URL for the UI (optional)
 
-El botón "API Docs" en la pantalla de login apunta por defecto a `http://localhost:5000`. Puedes sobrescribir esa URL en desarrollo con la variable de entorno `VITE_API_URL` (útil si el API corre en otro host/puerto).
+The "API Docs" button on the login screen points to `http://localhost:5000` by default. Override it in development with the `VITE_API_URL` environment variable (useful when the API runs on a different host or port).
 
 Windows (PowerShell):
 ```powershell
@@ -147,36 +167,32 @@ npm install
 npm run dev
 ```
 
-También puedes crear un archivo `.env` o `.env.local` dentro de `web/ballastlane-web` con la línea:
+You can also create a `.env` or `.env.local` file inside `web/ballastlane-web` with:
 ```
 VITE_API_URL=http://localhost:5000
 ```
 
-Esto hará que la UI use la URL indicada para abrir Swagger desde el botón "API Docs" en la pantalla de login.
+This tells the UI which URL to open when the user clicks "API Docs" on the login screen.
 
 ---
 
-### Uso rápido de Swagger y ejemplos de API
+### Quick-start with Swagger
 
-Si quieres probar rápidamente los endpoints y cómo autorizarte, aquí hay pasos y ejemplos útiles.
-
-1) Usar Swagger UI
-
-- Abre `http://localhost:5000` (o la URL que hayas configurado con `VITE_API_URL`).
-- Ejecuta `POST /api/auth/login` con el body JSON:
+1. Open `http://localhost:5000` (or the URL set via `VITE_API_URL`).
+2. Call `POST /api/auth/login` with the following body:
 
 ```json
 {"username":"demo","password":"Demo@12345"}
 ```
 
-- Copia el campo `token` de la respuesta.
-- Pulsa el botón **Authorize** (candado) en la esquina superior derecha de Swagger y pega:
+3. Copy the `token` field from the response.
+4. Click the **Authorize** button (padlock icon) in the top-right corner of Swagger and enter:
 
 ```
-Bearer <tu_token>
+Bearer <your_token>
 ```
 
-- Ejecuta `GET /api/tasks` desde Swagger — ahora devolverá tus tareas.
+5. Call `GET /api/tasks` — it will now return your tasks.
 
 2) PowerShell (login + obtener tasks)
 
