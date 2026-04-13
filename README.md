@@ -4,9 +4,16 @@
 
 Full-stack task management application built as a .NET Technical Interview exercise.
 
+
 **Stack:** ASP.NET Core 8 · ADO.NET · SQL Server 2022 · React 19 + Vite 8 · Docker Compose
 
+**Version:** 0.2.0
+
 **Architecture:** Hexagonal (Ports & Adapters) / Clean Architecture
+
+See the user stories for the project here: [User Stories](docs/User-Stories.md)
+
+
 
 ---
 
@@ -78,6 +85,83 @@ Driven Adapters        →  ADO.NET (SqlServer), PBKDF2 hasher, JWT generator
 
 ---
 
+## GenAI Development Approach
+
+**Tool used:** GitHub Copilot (Agent Mode / Claude Sonnet 4.6)
+
+**What was validated and corrected:**
+
+| AI Output | Human Validation | Correction made |
+|-----------|------------------|-----------------|
+| `node:18` in Web Dockerfile | Panel would get build error — Vite 8 requires Node ≥ 20.19 | Changed to `node:22-alpine` |
+| SQL Server 2022 healthcheck used `mssql-tools` path | Path changed to `mssql-tools18` in 2022 image; containers never became healthy | Fixed path + added `-C` flag |
+| `DbMigrator` connected directly to `BallastlaneDb` | Fresh container fails — DB doesn't exist yet | Added `EnsureDatabaseExistsAsync()` via `master` first |
+| `0001_init.sql` created `__Migrations` table | Migrator creates it programmatically — conflict on `docker compose up` | Removed duplicate DDL from SQL script |
+| No `nginx.conf` for the web container | React SPA returned 404 on browser refresh; `/api` calls had no proxy | Created `nginx.conf` with `try_files` + `proxy_pass` |
+| Architecture selection not deliberated | AI defaulted to layered architecture; 4 options were evaluated in a decision matrix | Hexagonal chosen after explicit trade-off analysis |
+| No logging strategy in initial proposal | Clean Architecture requires cross-cutting concerns to be designed explicitly | Added Serilog with `ILogger<T>` abstraction across all layers (Domain excluded) |
+
+**Critical thinking demonstrated:**
+- Every architectural choice (ADO.NET, Hexagonal, Docker Compose) was challenged before adoption — not accepted blindly.
+- AI-generated Docker configuration had 5 runtime bugs that only surfaced during `docker compose up --build` — all caught and fixed through systematic validation.
+- The human enforced production constraint: "The domain layer must never log" — AI had logging in domain entities in early drafts.
+- Prompt engineering was iterative: initial scaffolding prompt was refined to add specific constraints (PBKDF2, numbered migration runner, `ITaskOwnershipValidator`) after reviewing the first output.
+
+- **Human Decisions:**
+    - **Drag-and-drop UX:** Implemented drag-and-drop in the Kanban `TasksPage` to persist status changes; UX handlers added to the frontend so state and API remain consistent (see [web/ballastlane-web/src/pages/TasksPage.tsx](web/ballastlane-web/src/pages/TasksPage.tsx)).
+    - **Frontend layout:** Switched to a Tailwind-based Kanban layout (Login, Header, Tasks) — human-chosen for clarity and presentation.
+    - **Encoding & editor hygiene:** Fixed stray encoding artifacts (e.g., `Â·`, `â€¦`), added `charset utf-8` to `nginx.conf` and repository `.editorconfig`/`.gitattributes`.
+    - **API Docs on Login:** Added an "API Docs" (Swagger) button to the Login page; link configurable via `VITE_API_URL`.
+    - **Preserve architecture:** Arturo refused invasive changes that would violate the Hexagonal / Clean Architecture; only minimal, well-scoped adapters added.
+    - **Audit write instrumentation:** Approved `sql/migrations/0003_audit.sql`, `IAuditRepository.InsertAsync`, and write instrumentation in `TasksController` and `AuthService.Register` so create/update/delete actions produce audit rows. Verified seed + audit inserts locally.
+    - **Audit UI & API features:** Show both server and user-local timestamps in audit UI, implemented server + client pagination for audit endpoints, and store `OldValues`/`NewValues` JSON in `Audits`.
+    - **Drag-and-drop persistence decision:** Persist status changes via API, not just local state — chosen for consistency and auditability.
+
+- **Data-access decision (in-depth evaluation):**
+    - **Alternatives considered:** ADO.NET (SqlClient), RepoDB/OrmLite (micro-ORMs), Npgsql/Sqlite drivers, MongoDB, custom micro-ORM.
+    - **Final choice:** `ADO.NET` + SQL Server. Rationale: aligns with exercise spirit (no EF/Dapper), demonstrates low-level skills (parameterized queries, connection management), and fits Hexagonal adapter pattern (infrastructure-only concern).
+    - **Rejected options:** RepoDB/OrmLite (violates spirit), MongoDB (relational semantics implied by exercise), custom micro-ORM (over-engineering).
+
+- **User-story and requirements discipline:**
+    - Converted one-line AI stories into enterprise-quality user stories: HU numbering, Process/Subprocess, full data model fields, codified business rules (RN-XX), and Gherkin acceptance scenarios. Split into distinct user stories when appropriate (Tasks vs Auth).
+
+- **Logging strategy (gap found & fixed):**
+    - **Human found missing coverage:** AI initially omitted a logging strategy.
+    - **Decision:** Use `ILogger<T>` (built-in) for structured logs; mention Serilog as an easy production upgrade. Domain layer remains pure — no logging in entities; application/infrastructure layers handle logging and map `DomainException` to responses.
+
+- **Docker & deployment (reviewer empathy):**
+    - **Problem:** LocalDB/Windows-only assumption is brittle for reviewers.
+    - **Decision:** Primary delivery via `docker compose` (cross-platform, seeded DB), with manual/local instructions as a fallback. This minimizes friction for interviewers and ensures deterministic demos.
+
+- **Database initialization strategy (hybrid, concrete):**
+    - **Chosen approach:** Numbered SQL migration files stored in `sql/migrations/` + C# orchestrator (`DbMigrator`) that:
+        - Connects to `master` and ensures database exists (`EnsureDatabaseExistsAsync()`).
+        - Applies migration scripts idempotently.
+        - Records applied scripts in `__Migrations`.
+    - **Rationale:** Scripts remain reviewable/run-manually; C# runner makes Docker-first startup robust (cold-start safe).
+
+- **Copilot / checkpoint policy:**
+    - `.github/copilot-instructions.md` is the repo-level policy; `docs/Arthur_Checkpoint_Exploration.md` is the canonical checkpoint for resuming sessions. Human must ask the assistant to re-read if modified mid-session.
+
+- **Notable divergences the human corrected (runtime/config bugs discovered):**
+    - Wrong web base image: `node:18-alpine` → changed to `node:22-alpine` (Vite compatibility).
+    - SQL Server healthcheck: used wrong `sqlcmd` path and missed `-C` flag for 2022 image; caused container to remain unhealthy.
+    - Cold-start migration: `DbMigrator` originally connected directly to `BallastlaneDb` (didn't exist) → added `EnsureDatabaseExistsAsync()` via `master`.
+    - Duplicate DDL: `0001_init.sql` attempted to create `__Migrations` while migrator also creates it; removed duplicate.
+    - Missing `nginx.conf`: SPA refresh broke; added `try_files` + `/api` proxy rules.
+    - CI badge link used wrong GitHub username — fixed to avoid broken README badges.
+    - Over-ambitious hardening proposed by AI (full OWASP/Snyk) was scoped down by human to essential headers + `docker-compose.prod.yml`.
+
+- **Implementation phase — AI strengths & failures:**
+    - **What AI got right:** Domain entities (value objects), application services and ports, ADO.NET parameterization patterns, xUnit test scaffolding, JWT + PBKDF2 design, correlation-id middleware, React SPA layout scaffolding.
+    - **What AI got wrong (required human fixes):** runtime Docker bugs above, CI link, over-specified hardening, hand-waved DB init flow.
+    - **Validation workflow used:** iterate — scaffold → `dotnet build` → `dotnet test` → `docker compose up --build -d` → `docker compose ps` → `docker compose logs` → browser smoke tests / API smoke tests. This surfaced 5 silent runtime bugs that code review alone did not show.
+
+- **Prompt engineering insight (practical):**
+    - Generic prompts produced incomplete scaffolds. Adding explicit constraints (ADO.NET only, PBKDF2, numbered migration runner, `ITaskOwnershipValidator`, TDD) produced architecturally correct output faster.
+
+---
+
 ## Run Locally (manual — requires .NET 8 SDK + SQL Server)
 
 Set secrets via environment variables or a local `.env` file (copy `.env.example` and edit values).
@@ -122,59 +206,10 @@ dotnet run --project src/Ballastlane.Api
 dotnet test Ballastlane.sln
 ```
 
-92 tests across 4 layers: Domain · Application · Infrastructure · API
+137 tests across 4 layers: Domain · Application · Infrastructure · API
 
 ---
 
-## E2E (Playwright)
-
-End-to-end smoke tests are scaffolded using Playwright inside the frontend folder.
-
-Quick steps (frontend):
-
-```bash
-cd web/ballastlane-web
-npm install
-# Run Playwright tests (expects the frontend to be served at http://localhost:5173)
-npm run test:e2e
-# Open the Playwright HTML report
-npx playwright show-report
-```
-
-Notes:
-- The scaffold includes `playwright.config.ts` and a minimal smoke test at `web/ballastlane-web/e2e/specs/smoke.spec.ts`.
-- Tests may require the API at `http://localhost:5000` if flows perform backend interactions; start the stack with `docker compose up --build -d` before running e2e if needed.
-
----
-
-### Configure the API URL for the UI (optional)
-
-The "API Docs" button on the login screen points to `http://localhost:5000` by default. Override it in development with the `VITE_API_URL` environment variable (useful when the API runs on a different host or port).
-
-Windows (PowerShell):
-```powershell
-$env:VITE_API_URL='http://localhost:5000'
-cd web/ballastlane-web
-npm install
-npm run dev
-```
-
-macOS / Linux (bash):
-```bash
-export VITE_API_URL='http://localhost:5000'
-cd web/ballastlane-web
-npm install
-npm run dev
-```
-
-You can also create a `.env` or `.env.local` file inside `web/ballastlane-web` with:
-```
-VITE_API_URL=http://localhost:5000
-```
-
-This tells the UI which URL to open when the user clicks "API Docs" on the login screen.
-
----
 
 ### Quick-start with Swagger
 
@@ -210,24 +245,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/tasks
 ```
 
 Note: if your API is hosted at a different URL, replace `http://localhost:5000` with the value of `VITE_API_URL`.
-
-
-## Release
-
-Prepare a release tag and push it to the remote. Do not tag until your working tree has the desired changes and you are ready to publish.
-
-Suggested (manual) steps to create an annotated tag locally and push it to GitHub:
-
-```bash
-# Bump versions / ensure working tree is ready
-git add -A
-git commit -m "chore(release): prepare v0.1.0"    # run only when ready
-git tag -a v0.1.0 -m "release: v0.1.0"
-git push origin v0.1.0
 ```
-
-
-
 ## CI
 
 GitHub Actions runs on every push/PR to `main`, `dev`, and `qa`:
@@ -235,47 +253,3 @@ GitHub Actions runs on every push/PR to `main`, `dev`, and `qa`:
 - `dotnet build --configuration Release`
 - `dotnet test --configuration Release`
 
----
-
-## GenAI Development Approach
-
-**Tool used:** GitHub Copilot (Agent Mode / Claude Sonnet 4.6)
-
-**Primary prompt template used to scaffold the solution:**
-
-```
-You are a senior .NET architect. Scaffold a production-quality ASP.NET Core 8 Web API
-following Hexagonal Architecture (Ports & Adapters / Clean Architecture).
-
-Constraints:
-- ADO.NET only — NO Entity Framework, NO Dapper, NO MediatR
-- SQL Server with parameterized queries (OWASP compliance)
-- xUnit + Moq for all layers — TDD approach (failing test first)
-- JWT Bearer authentication with PBKDF2 password hashing
-- The domain must include: TaskItem (title, description, status, due_date),
-  User, Email value object, DomainException
-- Expose: POST /api/auth/register, POST /api/auth/login,
-  full CRUD /api/tasks, GET /api/tasks/public/stats (no auth)
-- Projects: Domain / Application / Infrastructure / API / Tests (4 test projects)
-
-Generate the solution structure with all interfaces (ports), implementations
-(adapters), DTOs, and a numbered SQL migration runner.
-```
-
-**What was validated and corrected:**
-
-| AI Output | Human Validation | Correction made |
-|-----------|------------------|-----------------|
-| `node:18` in Web Dockerfile | Panel would get build error — Vite 8 requires Node ≥ 20.19 | Changed to `node:22-alpine` |
-| SQL Server 2022 healthcheck used `mssql-tools` path | Path changed to `mssql-tools18` in 2022 image; containers never became healthy | Fixed path + added `-C` flag |
-| `DbMigrator` connected directly to `BallastlaneDb` | Fresh container fails — DB doesn't exist yet | Added `EnsureDatabaseExistsAsync()` via `master` first |
-| `0001_init.sql` created `__Migrations` table | Migrator creates it programmatically — conflict on `docker compose up` | Removed duplicate DDL from SQL script |
-| No `nginx.conf` for the web container | React SPA returned 404 on browser refresh; `/api` calls had no proxy | Created `nginx.conf` with `try_files` + `proxy_pass` |
-| Architecture selection not deliberated | AI defaulted to layered architecture; 4 options were evaluated in a decision matrix | Hexagonal chosen after explicit trade-off analysis |
-| No logging strategy in initial proposal | Clean Architecture requires cross-cutting concerns to be designed explicitly | Added Serilog with `ILogger<T>` abstraction across all layers (Domain excluded) |
-
-**Critical thinking demonstrated:**
-- Every architectural choice (ADO.NET, Hexagonal, Docker Compose) was challenged before adoption — not accepted blindly.
-- AI-generated Docker configuration had 5 runtime bugs that only surfaced during `docker compose up --build` — all caught and fixed through systematic validation.
-- The human enforced production constraint: "The domain layer must never log" — AI had logging in domain entities in early drafts.
-- Prompt engineering was iterative: initial scaffolding prompt was refined to add specific constraints (PBKDF2, numbered migration runner, `ITaskOwnershipValidator`) after reviewing the first output.

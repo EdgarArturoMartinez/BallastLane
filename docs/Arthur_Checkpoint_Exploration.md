@@ -1170,6 +1170,145 @@ Arturo considered having a `--use-sqlite` flag for zero-dependency runs. We deci
 
 **Result:** http://localhost:5173 → login with `demo` / `Demo@12345` → full Kanban task UI.
 
+
+---
+
+### Discussion 7: Copilot instructions and memories (Human-Initiated)
+
+
+**Arturo's question:** _"How does Copilot consume files like `.github/copilot-instructions.md`? Do I need to ask the agent to read them every session or are they auto-loaded? Why place them in `.github/`?"_
+
+**Summary of outcome:**
+- `.github/copilot-instructions.md` is a repo-level instruction file intended to be consulted by Copilot in supported clients; placing it in `.github/` follows GitHub conventions and improves discoverability by tools and reviewers.
+- `docs/Arthur_Checkpoint_Exploration.md` serves as the canonical checkpoint containing project decisions and short EOD summaries; keep it up to date for session resumption.
+- Auto-loading behavior depends on the client/version: some Copilot/Agent clients load repo instructions at conversation start or when the agent detects relevance; if you edit these files mid-session, ask the assistant to re-read them explicitly.
+
+**What to say in the interview:**
+- "I maintain a short `.github/copilot-instructions.md` for repo-level policy and `docs/Arthur_Checkpoint_Exploration.md` as the canonical checkpoint. This lets the assistant read only high-signal files and avoids re-sending large context in prompts."
+
+**Practical notes:**
+- Keep these files concise and focused — Copilot prioritizes short, high-signal documents. Avoid storing secrets.
+- If you ever doubt the assistant is using the latest file, prompt: `Please re-read .github/copilot-instructions.md and docs/Arthur_Checkpoint_Exploration.md`.
+
+
+### Discussion 8: Decisions Log — What the AI Proposed vs. What the Human Decided
+
+| Topic | AI's Initial Proposal | Arturo's Decision | Rationale |
+|-------|----------------------|-------------------|-----------|
+| Data access tool | ADO.NET (assumed) | ADO.NET (validated after evaluating 7 alternatives) | Not assumed — deliberated. Spirit of the constraint matters. |
+| User story format | One-liner + bullet acceptance criteria | Full enterprise format with Gherkin + Business Rules | AI lacked context on real DevOps standards; human provided reference file |
+| Architecture | 4 options presented equally | Hexagonal chosen after matrix comparison | Human validated the trade-offs and confirmed alignment with resume profile |
+| Database choice | SQL Server (assumed) | SQL Server (confirmed after considering MongoDB, SQLite) | Relational semantics in exercise wording; .NET ecosystem alignment |
+| Number of user stories | 1 combined story | 2 separate stories (Tasks + Auth) | Separation of concerns — auth is a distinct business capability |
+| Gherkin scenarios | Not included initially | Added 13 scenarios across 2 user stories | Human insisted on testable acceptance criteria tied to TDD approach |
+| Logging strategy | ❌ Not contemplated by AI | `ILogger<T>` with structured logging across all layers (except Domain) | Human detected the gap. AI had zero logging in the entire document. Proves human review value. |
+| Docker / deployment | LocalDB assumed (Windows-only) | Docker Compose full stack + manual fallback | Human anticipated reviewer's environment. AI assumed local SQL Server. Cross-platform and zero-friction setup. |
+| DB initialization | Hand-waved (`DatabaseInitializer.cs` + `seed.sql` with no details) | Hybrid: numbered SQL scripts in `Scripts/` folder + C# orchestrator with retry logic | Human asked "how exactly does it work?" — AI had no concrete flow. Led to full startup sequence design. |
+| Docker build image (web) | `node:18-alpine` | `node:22-alpine` | Vite 8 requires Node ≥ 20.19; `node:18` caused `CustomEvent is not defined` at runtime. AI used an outdated base image. |
+| SQL Server 2022 healthcheck | `mssql-tools` path + no `-C` flag | `mssql-tools18` path + `-C` flag + `retries:15` | SQL Server 2022 image ships sqlcmd under `mssql-tools18`. Without `-C` the TLS cert is rejected. Container stayed unhealthy forever; API never started. Human ran `docker compose ps` and traced the cascade failure. |
+| DB migrator startup | `DbMigrator` opened `BallastlaneDb` directly | Added `EnsureDatabaseExistsAsync()` connecting via `master` first | Fresh container has no `BallastlaneDb` — `Login failed` on first run. AI never considered the cold-start scenario. Human caught it from the API container logs. |
+| `__Migrations` table creation | `0001_init.sql` contained `CREATE TABLE __Migrations` | Removed duplicate DDL from SQL script | `DbMigrator.EnsureMigrationsTableAsync()` creates the table programmatically, then the SQL script tried to create it again. Human identified the conflict from the migration error log. |
+| nginx config for web container | No `nginx.conf` at all | Created `nginx.conf` with SPA `try_files` + `/api` proxy | React SPA on page refresh returned nginx 404 (no fallback route). API calls from React to `/api` had no upstream target. Both bugs invisible until validating the browser in Docker. |
+| CI badge URL in README | `github.com/arturo-martinez/Ballastlane` (wrong user/repo) | `github.com/EdgarArturoMartinez/BallastLane` | AI guessed a plausible URL that did not match the actual GitHub repo. Human verified via `git remote get-url origin`. |
+| Security hardening scope | Proposed full OWASP/Snyk/integration test suite as "Phase 10" | Reverted to only essential headers (HSTS, X-Content-Type-Options, CSP, X-Frame-Options) + prod docker-compose | Human re-read the exercise requirements and correctly identified that hardening beyond the basics was out of scope. AI had over-engineered the phase. |
+
+---
+
+### Key Takeaway for Interviewers
+
+This exploration phase demonstrates that the AI was used as a **collaborative thinking partner**, not as a code generator. At every stage:
+
+1. **The human challenged AI assumptions** — e.g., "Is ADO.NET really the only option?"
+2. **The human provided real-world context** — e.g., Azure DevOps user story format from production projects.
+3. **The human made the final architectural decision** — the AI presented 4 options; the human evaluated and chose.
+4. **The human elevated quality standards** — pushing from generic acceptance criteria to enterprise Gherkin specifications.
+5. **The human caught AI blind spots** — logging was completely absent from the AI's entire document. The human identified the gap, and together we defined a production-grade strategy that respects Clean Architecture boundaries.
+6. **The human anticipated the reviewer's experience** — the AI assumed LocalDB (Windows-only). The human asked: "What if they don't have SQL Server?" This led to Docker Compose as the primary delivery mechanism — showing operational maturity beyond just writing code.
+7. **The human demanded implementation specifics** — the AI hand-waved database initialization ("DatabaseInitializer runs on startup"). The human asked: "How exactly? Scripts? Code? Both?" This forced a concrete design: numbered SQL files + C# orchestrator with retry logic. The AI had no answer until the human pushed.
+8. **The human validated the running system end-to-end** — AI-generated Docker configuration had 5 silent runtime bugs (wrong Node version, wrong sqlcmd path, missing DB creation, duplicate DDL, missing nginx config). None were visible in code review; all only surfaced when running `docker compose up --build`. The human drove the validation loop: run → read logs → isolate → fix → re-run.
+9. **The human kept the AI in scope** — When AI proposed a full OWASP/Snyk/integration-test hardening phase, the human re-read the exercise requirements and correctly stopped the over-engineering. The correct response was: add minimal security headers and a `docker-compose.prod.yml` — nothing more.
+10. **The human caught a silent documentation bug** — The AI generated a CI badge URL with a wrong GitHub username (`arturo-martinez` instead of `EdgarArturoMartinez`). The badge would have shown a broken image in the README during the presentation. Human verified the URL against `git remote get-url origin`.
+
+This is how GenAI tools should be used in professional software development: augmenting domain expertise, not replacing critical thinking.
+
+---
+
+### Discussion 9: Implementation Phase — AI-Assisted Development with Human-Driven Validation
+
+> The previous discussions (1–8) covered the exploration and architecture phase. This discussion documents the **implementation phase** — how AI generated code, and how the human systematically validated, corrected, and steered the output.
+
+**Tool used:** GitHub Copilot with Agent Mode (Claude Sonnet 4.6)
+
+**Phase covered:** Phases 0–10 (Solution scaffold → Domain → Application → Infrastructure → API → Frontend → Tests → Docker → CI → Hardening)
+
+#### What AI did well (accepted without major changes)
+
+| Component | AI quality | Notes |
+|-----------|-----------|-------|
+| Domain entities (`TaskItem`, `User`, `Email`) | ✅ High | Clean value object pattern, immutability, `DomainException` — matched intended design |
+| Application services (`TaskService`, `AuthService`) | ✅ High | Ports correctly injected; no infrastructure leakage into application layer |
+| ADO.NET repositories (`AdoTaskRepository`, `AdoUserRepository`) | ✅ High | Parameterized queries from first draft; correct `using` disposal; OWASP-compliant |
+| xUnit test structure (all 4 layers) | ✅ High | 92 tests; `WebApplicationFactory` integration wiring; Moq usage correct |
+| JWT + PBKDF2 password hasher | ✅ High | Correct `SymmetricSecurityKey`, `ClockSkew=Zero`, PBKDF2 with salt |
+| Serilog integration + `CorrelationIdMiddleware` | ✅ High | Structured logging; clean middleware chain; domain layer stays log-free |
+| React SPA (login, register, tasks CRUD) | ✅ High | Clean component structure; `AuthContext` with JWT; responsive layout |
+
+#### What AI got wrong (required human correction)
+
+| Issue | What AI produced | What was wrong | What human did |
+|-------|-----------------|----------------|----------------|
+| Web container base image | `node:18-alpine` | Vite 8 requires Node ≥ 20.19; `CustomEvent` not defined at runtime | Changed to `node:22-alpine` |
+| SQL Server healthcheck | `mssql-tools` path, no `-C` | 2022 image uses `mssql-tools18`; TLS cert rejected without `-C`; containers never reached `healthy` | Fixed path + flag + raised `retries` to 15 |
+| `DbMigrator` cold start | Connected directly to `BallastlaneDb` | DB doesn't exist on fresh container — `Login failed` | Added `EnsureDatabaseExistsAsync()` via `master` connection |
+| `0001_init.sql` | Contained `CREATE TABLE __Migrations` | Duplicate — migrator creates it programmatically first | Removed the DDL from the SQL script |
+| `nginx.conf` | Not generated | SPA page refresh → 404; `/api` proxy missing | Created `nginx.conf` from scratch: `try_files` + `proxy_pass` |
+| CI badge URL | `github.com/arturo-martinez/Ballastlane` | Wrong username and casing — badge would show broken in README | Corrected to `github.com/EdgarArturoMartinez/BallastLane` |
+| Phase 10 scope | Full OWASP/Snyk/integration tests | Out of scope for the exercise | Human re-read requirements and scoped down to essential security headers only |
+
+#### The validation workflow used
+
+```
+AI generates code → Human reviews for architectural fit
+         ↓
+dotnet build (0 errors, 0 warnings)
+         ↓
+dotnet test (92 tests green)
+         ↓
+docker compose up --build -d
+         ↓
+docker compose ps → check service health
+         ↓
+docker compose logs api → read startup sequence
+         ↓
+HTTP smoke tests:
+  GET /health → 200
+  POST /api/auth/login → JWT token
+  GET /api/tasks (with token) → 3 seeded tasks
+  Browser: http://localhost:5173 → SPA loads, login works
+         ↓
+If any step fails → isolate root cause → fix → restart loop
+```
+
+**Total Docker bugs found through this loop:** 5  
+**All 5 were invisible in code review — only surfaced at runtime.**
+
+#### Prompt engineering example — iterative refinement
+
+**First prompt (too generic):**
+> "Create a .NET Clean Architecture task management API with SQL Server."
+
+**What was missing from the output:**
+- No migration runner (assumed EF Migrations)
+- No PBKDF2 (used BCrypt which adds a dependency)
+- No `ITaskOwnershipValidator` — tasks were not user-scoped properly
+- No `EnsureDatabaseExistsAsync` — migrator assumed DB existed
+
+**Refined prompt (what produced the final implementation):**
+> "You are a senior .NET architect. Scaffold a production-quality ASP.NET Core 8 Web API following Hexagonal Architecture. Constraints: ADO.NET only (no EF, Dapper, MediatR), SQL Server with parameterized queries, xUnit + Moq TDD (failing test first), JWT + PBKDF2 (no BCrypt dependency), numbered SQL migration runner that first creates the DB via a `master` connection, task ownership enforcement (user can only read/modify their own tasks). Projects: Domain / Application / Infrastructure / API / 4 test projects."
+
+**Lesson:** The constraint specification in the prompt is the most valuable investment. Vague prompts require multiple correction rounds. Specific constraints (with rationale) produce output that is architecturally correct from the first draft.
+
+
 ---
 
 ## 9. Development Phases Roadmap
@@ -1362,142 +1501,6 @@ public class DatabaseInitializer
  - ❌ No EF Migrations — they're not needed and would violate the "no EF" constraint.
  - ❌ No Docker `entrypoint` scripts — keeps SQL Server container vanilla (official image, no custom Dockerfile).
 
----
-
-### Discussion 7: Copilot instructions and memories (Human-Initiated)
-
-
-**Arturo's question:** _"How does Copilot consume files like `.github/copilot-instructions.md`? Do I need to ask the agent to read them every session or are they auto-loaded? Why place them in `.github/`?"_
-
-**Summary of outcome:**
-- `.github/copilot-instructions.md` is a repo-level instruction file intended to be consulted by Copilot in supported clients; placing it in `.github/` follows GitHub conventions and improves discoverability by tools and reviewers.
-- `docs/Arthur_Checkpoint_Exploration.md` serves as the canonical checkpoint containing project decisions and short EOD summaries; keep it up to date for session resumption.
-- Auto-loading behavior depends on the client/version: some Copilot/Agent clients load repo instructions at conversation start or when the agent detects relevance; if you edit these files mid-session, ask the assistant to re-read them explicitly.
-
-**What to say in the interview:**
-- "I maintain a short `.github/copilot-instructions.md` for repo-level policy and `docs/Arthur_Checkpoint_Exploration.md` as the canonical checkpoint. This lets the assistant read only high-signal files and avoids re-sending large context in prompts."
-
-**Practical notes:**
-- Keep these files concise and focused — Copilot prioritizes short, high-signal documents. Avoid storing secrets.
-- If you ever doubt the assistant is using the latest file, prompt: `Please re-read .github/copilot-instructions.md and docs/Arthur_Checkpoint_Exploration.md`.
-
-
-### Discussion 8: Decisions Log — What the AI Proposed vs. What the Human Decided
-
-| Topic | AI's Initial Proposal | Arturo's Decision | Rationale |
-|-------|----------------------|-------------------|-----------|
-| Data access tool | ADO.NET (assumed) | ADO.NET (validated after evaluating 7 alternatives) | Not assumed — deliberated. Spirit of the constraint matters. |
-| User story format | One-liner + bullet acceptance criteria | Full enterprise format with Gherkin + Business Rules | AI lacked context on real DevOps standards; human provided reference file |
-| Architecture | 4 options presented equally | Hexagonal chosen after matrix comparison | Human validated the trade-offs and confirmed alignment with resume profile |
-| Database choice | SQL Server (assumed) | SQL Server (confirmed after considering MongoDB, SQLite) | Relational semantics in exercise wording; .NET ecosystem alignment |
-| Number of user stories | 1 combined story | 2 separate stories (Tasks + Auth) | Separation of concerns — auth is a distinct business capability |
-| Gherkin scenarios | Not included initially | Added 13 scenarios across 2 user stories | Human insisted on testable acceptance criteria tied to TDD approach |
-| Logging strategy | ❌ Not contemplated by AI | `ILogger<T>` with structured logging across all layers (except Domain) | Human detected the gap. AI had zero logging in the entire document. Proves human review value. |
-| Docker / deployment | LocalDB assumed (Windows-only) | Docker Compose full stack + manual fallback | Human anticipated reviewer's environment. AI assumed local SQL Server. Cross-platform and zero-friction setup. |
-| DB initialization | Hand-waved (`DatabaseInitializer.cs` + `seed.sql` with no details) | Hybrid: numbered SQL scripts in `Scripts/` folder + C# orchestrator with retry logic | Human asked "how exactly does it work?" — AI had no concrete flow. Led to full startup sequence design. |
-| Docker build image (web) | `node:18-alpine` | `node:22-alpine` | Vite 8 requires Node ≥ 20.19; `node:18` caused `CustomEvent is not defined` at runtime. AI used an outdated base image. |
-| SQL Server 2022 healthcheck | `mssql-tools` path + no `-C` flag | `mssql-tools18` path + `-C` flag + `retries:15` | SQL Server 2022 image ships sqlcmd under `mssql-tools18`. Without `-C` the TLS cert is rejected. Container stayed unhealthy forever; API never started. Human ran `docker compose ps` and traced the cascade failure. |
-| DB migrator startup | `DbMigrator` opened `BallastlaneDb` directly | Added `EnsureDatabaseExistsAsync()` connecting via `master` first | Fresh container has no `BallastlaneDb` — `Login failed` on first run. AI never considered the cold-start scenario. Human caught it from the API container logs. |
-| `__Migrations` table creation | `0001_init.sql` contained `CREATE TABLE __Migrations` | Removed duplicate DDL from SQL script | `DbMigrator.EnsureMigrationsTableAsync()` creates the table programmatically, then the SQL script tried to create it again. Human identified the conflict from the migration error log. |
-| nginx config for web container | No `nginx.conf` at all | Created `nginx.conf` with SPA `try_files` + `/api` proxy | React SPA on page refresh returned nginx 404 (no fallback route). API calls from React to `/api` had no upstream target. Both bugs invisible until validating the browser in Docker. |
-| CI badge URL in README | `github.com/arturo-martinez/Ballastlane` (wrong user/repo) | `github.com/EdgarArturoMartinez/BallastLane` | AI guessed a plausible URL that did not match the actual GitHub repo. Human verified via `git remote get-url origin`. |
-| Security hardening scope | Proposed full OWASP/Snyk/integration test suite as "Phase 10" | Reverted to only essential headers (HSTS, X-Content-Type-Options, CSP, X-Frame-Options) + prod docker-compose | Human re-read the exercise requirements and correctly identified that hardening beyond the basics was out of scope. AI had over-engineered the phase. |
-
----
-
-### Key Takeaway for Interviewers
-
-This exploration phase demonstrates that the AI was used as a **collaborative thinking partner**, not as a code generator. At every stage:
-
-1. **The human challenged AI assumptions** — e.g., "Is ADO.NET really the only option?"
-2. **The human provided real-world context** — e.g., Azure DevOps user story format from production projects.
-3. **The human made the final architectural decision** — the AI presented 4 options; the human evaluated and chose.
-4. **The human elevated quality standards** — pushing from generic acceptance criteria to enterprise Gherkin specifications.
-5. **The human caught AI blind spots** — logging was completely absent from the AI's entire document. The human identified the gap, and together we defined a production-grade strategy that respects Clean Architecture boundaries.
-6. **The human anticipated the reviewer's experience** — the AI assumed LocalDB (Windows-only). The human asked: "What if they don't have SQL Server?" This led to Docker Compose as the primary delivery mechanism — showing operational maturity beyond just writing code.
-7. **The human demanded implementation specifics** — the AI hand-waved database initialization ("DatabaseInitializer runs on startup"). The human asked: "How exactly? Scripts? Code? Both?" This forced a concrete design: numbered SQL files + C# orchestrator with retry logic. The AI had no answer until the human pushed.
-8. **The human validated the running system end-to-end** — AI-generated Docker configuration had 5 silent runtime bugs (wrong Node version, wrong sqlcmd path, missing DB creation, duplicate DDL, missing nginx config). None were visible in code review; all only surfaced when running `docker compose up --build`. The human drove the validation loop: run → read logs → isolate → fix → re-run.
-9. **The human kept the AI in scope** — When AI proposed a full OWASP/Snyk/integration-test hardening phase, the human re-read the exercise requirements and correctly stopped the over-engineering. The correct response was: add minimal security headers and a `docker-compose.prod.yml` — nothing more.
-10. **The human caught a silent documentation bug** — The AI generated a CI badge URL with a wrong GitHub username (`arturo-martinez` instead of `EdgarArturoMartinez`). The badge would have shown a broken image in the README during the presentation. Human verified the URL against `git remote get-url origin`.
-
-This is how GenAI tools should be used in professional software development: augmenting domain expertise, not replacing critical thinking.
-
----
-
-### Discussion 9: Implementation Phase — AI-Assisted Development with Human-Driven Validation
-
-> The previous discussions (1–8) covered the exploration and architecture phase. This discussion documents the **implementation phase** — how AI generated code, and how the human systematically validated, corrected, and steered the output.
-
-**Tool used:** GitHub Copilot with Agent Mode (Claude Sonnet 4.6)
-
-**Phase covered:** Phases 0–10 (Solution scaffold → Domain → Application → Infrastructure → API → Frontend → Tests → Docker → CI → Hardening)
-
-#### What AI did well (accepted without major changes)
-
-| Component | AI quality | Notes |
-|-----------|-----------|-------|
-| Domain entities (`TaskItem`, `User`, `Email`) | ✅ High | Clean value object pattern, immutability, `DomainException` — matched intended design |
-| Application services (`TaskService`, `AuthService`) | ✅ High | Ports correctly injected; no infrastructure leakage into application layer |
-| ADO.NET repositories (`AdoTaskRepository`, `AdoUserRepository`) | ✅ High | Parameterized queries from first draft; correct `using` disposal; OWASP-compliant |
-| xUnit test structure (all 4 layers) | ✅ High | 92 tests; `WebApplicationFactory` integration wiring; Moq usage correct |
-| JWT + PBKDF2 password hasher | ✅ High | Correct `SymmetricSecurityKey`, `ClockSkew=Zero`, PBKDF2 with salt |
-| Serilog integration + `CorrelationIdMiddleware` | ✅ High | Structured logging; clean middleware chain; domain layer stays log-free |
-| React SPA (login, register, tasks CRUD) | ✅ High | Clean component structure; `AuthContext` with JWT; responsive layout |
-
-#### What AI got wrong (required human correction)
-
-| Issue | What AI produced | What was wrong | What human did |
-|-------|-----------------|----------------|----------------|
-| Web container base image | `node:18-alpine` | Vite 8 requires Node ≥ 20.19; `CustomEvent` not defined at runtime | Changed to `node:22-alpine` |
-| SQL Server healthcheck | `mssql-tools` path, no `-C` | 2022 image uses `mssql-tools18`; TLS cert rejected without `-C`; containers never reached `healthy` | Fixed path + flag + raised `retries` to 15 |
-| `DbMigrator` cold start | Connected directly to `BallastlaneDb` | DB doesn't exist on fresh container — `Login failed` | Added `EnsureDatabaseExistsAsync()` via `master` connection |
-| `0001_init.sql` | Contained `CREATE TABLE __Migrations` | Duplicate — migrator creates it programmatically first | Removed the DDL from the SQL script |
-| `nginx.conf` | Not generated | SPA page refresh → 404; `/api` proxy missing | Created `nginx.conf` from scratch: `try_files` + `proxy_pass` |
-| CI badge URL | `github.com/arturo-martinez/Ballastlane` | Wrong username and casing — badge would show broken in README | Corrected to `github.com/EdgarArturoMartinez/BallastLane` |
-| Phase 10 scope | Full OWASP/Snyk/integration tests | Out of scope for the exercise | Human re-read requirements and scoped down to essential security headers only |
-
-#### The validation workflow used
-
-```
-AI generates code → Human reviews for architectural fit
-         ↓
-dotnet build (0 errors, 0 warnings)
-         ↓
-dotnet test (92 tests green)
-         ↓
-docker compose up --build -d
-         ↓
-docker compose ps → check service health
-         ↓
-docker compose logs api → read startup sequence
-         ↓
-HTTP smoke tests:
-  GET /health → 200
-  POST /api/auth/login → JWT token
-  GET /api/tasks (with token) → 3 seeded tasks
-  Browser: http://localhost:5173 → SPA loads, login works
-         ↓
-If any step fails → isolate root cause → fix → restart loop
-```
-
-**Total Docker bugs found through this loop:** 5  
-**All 5 were invisible in code review — only surfaced at runtime.**
-
-#### Prompt engineering example — iterative refinement
-
-**First prompt (too generic):**
-> "Create a .NET Clean Architecture task management API with SQL Server."
-
-**What was missing from the output:**
-- No migration runner (assumed EF Migrations)
-- No PBKDF2 (used BCrypt which adds a dependency)
-- No `ITaskOwnershipValidator` — tasks were not user-scoped properly
-- No `EnsureDatabaseExistsAsync` — migrator assumed DB existed
-
-**Refined prompt (what produced the final implementation):**
-> "You are a senior .NET architect. Scaffold a production-quality ASP.NET Core 8 Web API following Hexagonal Architecture. Constraints: ADO.NET only (no EF, Dapper, MediatR), SQL Server with parameterized queries, xUnit + Moq TDD (failing test first), JWT + PBKDF2 (no BCrypt dependency), numbered SQL migration runner that first creates the DB via a `master` connection, task ownership enforcement (user can only read/modify their own tasks). Projects: Domain / Application / Infrastructure / API / 4 test projects."
-
-**Lesson:** The constraint specification in the prompt is the most valuable investment. Vague prompts require multiple correction rounds. Specific constraints (with rationale) produce output that is architecturally correct from the first draft.
 
 ---
 
