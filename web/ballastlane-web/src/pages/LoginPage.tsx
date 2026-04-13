@@ -6,7 +6,7 @@ export default function LoginPage() {
   const { login, isLoading, error, clearError } = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({ username: 'demo', password: 'Demo@12345' });
 
   // API base used by UI links (can be overridden in dev with VITE_API_URL)
   const apiBase = ((import.meta as any).env && (import.meta as any).env.VITE_API_URL) || 'http://localhost:5000';
@@ -67,7 +67,7 @@ export default function LoginPage() {
               <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <span className="text-lg font-bold text-gray-900 dark:text-white">Ballastlane</span>
+          <span className="text-lg font-bold text-gray-900 dark:text-white">Ballastlane Exercise By Arturo Martinez - AI Assited</span>
         </div>
 
         <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 relative">
@@ -88,9 +88,17 @@ export default function LoginPage() {
             </svg>
             API Docs
           </a>
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Sign in to your account to continue</p>
+          </div>
+
+          {/* Demo credentials hint for interviewers */}
+          <div className="mb-6 flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700/50 text-xs text-indigo-700 dark:text-indigo-300">
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+            </svg>
+            <span>Demo credentials pre-filled — just click <strong>Sign in</strong>.</span>
           </div>
 
           {error && (
