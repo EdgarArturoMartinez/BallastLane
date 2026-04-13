@@ -56,7 +56,6 @@ export default function RegisterPage() {
         <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create your account</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Free forever. No credit card required.</p>
           </div>
 
           {error && (

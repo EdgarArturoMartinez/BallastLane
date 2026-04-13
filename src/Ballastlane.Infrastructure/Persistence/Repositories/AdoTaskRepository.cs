@@ -1,3 +1,4 @@
+using System.Data;
 using Ballastlane.Application.Ports;
 using Ballastlane.Domain.Entities;
 using Microsoft.Data.SqlClient;
@@ -31,7 +32,7 @@ public sealed class AdoTaskRepository : ITaskRepository
     public Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.QuerySingleOrDefaultAsync(
             SqlQueryLoader.Get("Tasks.GetById"),
-            cmd => cmd.Parameters.AddWithValue("@id", id),
+            cmd => cmd.Parameters.Add(new SqlParameter("@id", SqlDbType.UniqueIdentifier) { Value = id }),
             MapTask,
             ct);
 
@@ -47,12 +48,12 @@ public sealed class AdoTaskRepository : ITaskRepository
             SqlQueryLoader.Get("Tasks.Create"),
             cmd =>
             {
-                cmd.Parameters.AddWithValue("@id",          task.Id);
-                cmd.Parameters.AddWithValue("@title",       task.Title);
-                cmd.Parameters.AddWithValue("@description", task.Description);
-                cmd.Parameters.AddWithValue("@status",      task.Status.ToString());
-                cmd.Parameters.AddWithValue("@dueDate",     (object?)task.DueDate ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@ownerUserId", task.OwnerUserId);
+                cmd.Parameters.Add(new SqlParameter("@id",          SqlDbType.UniqueIdentifier) { Value = task.Id });
+                cmd.Parameters.Add(new SqlParameter("@title",       SqlDbType.NVarChar, 200)   { Value = task.Title });
+                cmd.Parameters.Add(new SqlParameter("@description", SqlDbType.NVarChar, 2000)  { Value = task.Description });
+                cmd.Parameters.Add(new SqlParameter("@status",      SqlDbType.NVarChar, 50)    { Value = task.Status.ToString() });
+                cmd.Parameters.Add(new SqlParameter("@dueDate",     SqlDbType.DateTime2)        { IsNullable = true, Value = (object?)task.DueDate ?? DBNull.Value });
+                cmd.Parameters.Add(new SqlParameter("@ownerUserId", SqlDbType.UniqueIdentifier) { Value = task.OwnerUserId });
             },
             ct);
 
@@ -61,18 +62,18 @@ public sealed class AdoTaskRepository : ITaskRepository
             SqlQueryLoader.Get("Tasks.Update"),
             cmd =>
             {
-                cmd.Parameters.AddWithValue("@id",          task.Id);
-                cmd.Parameters.AddWithValue("@title",       task.Title);
-                cmd.Parameters.AddWithValue("@description", task.Description);
-                cmd.Parameters.AddWithValue("@status",      task.Status.ToString());
-                cmd.Parameters.AddWithValue("@dueDate",     (object?)task.DueDate ?? DBNull.Value);
+                cmd.Parameters.Add(new SqlParameter("@id",          SqlDbType.UniqueIdentifier) { Value = task.Id });
+                cmd.Parameters.Add(new SqlParameter("@title",       SqlDbType.NVarChar, 200)   { Value = task.Title });
+                cmd.Parameters.Add(new SqlParameter("@description", SqlDbType.NVarChar, 2000)  { Value = task.Description });
+                cmd.Parameters.Add(new SqlParameter("@status",      SqlDbType.NVarChar, 50)    { Value = task.Status.ToString() });
+                cmd.Parameters.Add(new SqlParameter("@dueDate",     SqlDbType.DateTime2)        { IsNullable = true, Value = (object?)task.DueDate ?? DBNull.Value });
             },
             ct);
 
     public Task DeleteAsync(Guid id, CancellationToken ct = default) =>
         _db.ExecuteAsync(
             SqlQueryLoader.Get("Tasks.Delete"),
-            cmd => cmd.Parameters.AddWithValue("@id", id),
+            cmd => cmd.Parameters.Add(new SqlParameter("@id", SqlDbType.UniqueIdentifier) { Value = id }),
             ct);
 
     // ── Mapping ────────────────────────────────────────────────────────────
