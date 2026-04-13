@@ -50,7 +50,10 @@ NOTE FOR ASSISTANT RESUME: The assistant should first read `/.github/copilot-ins
 
 ### 1.3 User Stories (Formal Definition)
 
-Given the GenAI section explicitly mentions a **task management system** with fields `title`, `description`, `status`, `due_date`, we align the entire project around this domain. The user stories below follow enterprise-grade conventions: structured description, field specification, business rules (RN-XX), and Gherkin acceptance criteria — the same format used in production Azure DevOps backlogs.
+> ⚠️ **Last updated: 2026-04-12 — aligned with actual implementation (v0.2.0).**  
+> Schema, business rules, and Gherkin below reflect the deployed codebase, not original design sketches.
+
+The user stories below follow enterprise-grade conventions: structured description, field specification, business rules (RN-XX), and Gherkin acceptance criteria — the same format used in production Azure DevOps backlogs.
 
 ---
 
@@ -65,82 +68,91 @@ Given the GenAI section explicitly mentions a **task management system** with fi
 
 **Functional Description**
 
-The system must provide a Task Management module where authenticated users can manage their own tasks. Each task is owned by the user who created it; no cross-user task visibility is allowed. Tasks must support lifecycle transitions through defined statuses. The module must enforce data integrity, ownership isolation, and validation rules at the business logic layer — independent of the API and data layers.
+The system provides a Task Management module where authenticated users manage their own tasks. Each task belongs exclusively to the user who created it; the owner's identity (`OwnerUserId`) is derived from the JWT token — never from client input. Tasks transition through three statuses (`Todo`, `InProgress`, `Done`) and all mutations are recorded in the Audit trail (see HU-03).
 
-**Data Model — Task Entity**
+**Data Model — Task Entity** *(source of truth: `sql/migrations/0001_init.sql`)*
 
 | # | Field | Type | Description |
 |---|-------|------|-------------|
-| 1 | `Id` | UNIQUEIDENTIFIER (PK) | System-generated unique identifier |
-| 2 | `Title` | NVARCHAR(200), NOT NULL | Short descriptive name of the task |
-| 3 | `Description` | NVARCHAR(2000), NULL | Detailed description or notes |
-| 4 | `Status` | INT, NOT NULL | Task lifecycle: `Todo = 0`, `InProgress = 1`, `Done = 2` |
-| 5 | `DueDate` | DATETIME2, NOT NULL | Target completion date |
-| 6 | `UserId` | UNIQUEIDENTIFIER (FK), NOT NULL | Owner — references `Users.Id` |
-| 7 | `CreatedAt` | DATETIME2 | Auto-generated on creation (UTC) |
-| 8 | `UpdatedAt` | DATETIME2 | Auto-updated on modification (UTC) |
+| 1 | `Id` | `UNIQUEIDENTIFIER` PK, `DEFAULT NEWID()` | System-generated unique identifier |
+| 2 | `Title` | `NVARCHAR(200) NOT NULL` | Short descriptive name of the task |
+| 3 | `Description` | `NVARCHAR(2000) NOT NULL DEFAULT ''` | Detailed description or notes |
+| 4 | `Status` | `NVARCHAR(50) NOT NULL DEFAULT 'Todo'` | Lifecycle state — string values: `'Todo'`, `'InProgress'`, `'Done'` |
+| 5 | `DueDate` | `DATETIME2 NULL` | Optional target completion date |
+| 6 | `OwnerUserId` | `UNIQUEIDENTIFIER NOT NULL` FK → `Users.Id` | Owner — resolved from JWT claim, never from request body |
 
-**Key Functionalities**
+**API Endpoints**
 
-- **Ownership Isolation:** Users can only access (read/update/delete) tasks they own. The system must filter by `UserId` derived from the JWT token, never from client input.
-- **Status Transitions:** Status changes must be validated (e.g., cannot move from `Done` back to `Todo` without business justification — configurable).
-- **Soft Validation:** `DueDate` should be in the future for new tasks; updates allow past dates for historical tracking.
-- **Pagination & Filtering:** Task listing should support status filtering and basic pagination for scalability.
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| `GET` | `/api/tasks` | JWT | List all tasks owned by the authenticated user |
+| `GET` | `/api/tasks/{id}` | JWT | Get a single task by id |
+| `POST` | `/api/tasks` | JWT | Create a new task (status defaults to `Todo`) |
+| `PUT` | `/api/tasks/{id}` | JWT | Update title, description, status, due date |
+| `DELETE` | `/api/tasks/{id}` | JWT | Hard-delete a task |
+
+**DTOs**
+
+- `CreateTaskRequest`: `Title` (required), `Description`, `DueDate?` — initial status is always `Todo`.
+- `UpdateTaskRequest`: `Title` (required), `Description`, `Status`, `DueDate?`.
+- `TaskDto` (response): `Id`, `Title`, `Description`, `Status`, `DueDate?`, `OwnerUserId`.
 
 **Business Rules**
 
 | Code | Rule |
 |------|------|
-| RN-01 | `Title` is mandatory and must be between 3 and 200 characters. |
-| RN-02 | `DueDate` must be a valid date. For new tasks, it must be today or in the future. |
-| RN-03 | `Status` must be one of the defined values: `Todo (0)`, `InProgress (1)`, `Done (2)`. Invalid values are rejected. |
-| RN-04 | A user can only view, update, or delete tasks where `UserId` matches the authenticated user's ID from the JWT claim. |
-| RN-05 | Tasks cannot be deleted physically; they must support logical deletion or direct removal depending on business decision (for this MVP: hard delete is acceptable). |
-| RN-06 | `UpdatedAt` must be automatically set to `GETUTCDATE()` on every modification. |
-| RN-07 | All task operations (Create, Update, Delete) must be performed only by authenticated users with a valid JWT Bearer token. |
+| RN-01 | `Title` is mandatory. An empty or whitespace-only title is rejected with HTTP 400. Maximum length is 200 characters (enforced by the DB column). |
+| RN-02 | `DueDate` is optional. When provided, it must be a valid parseable date; no future-only enforcement is applied in the current implementation. |
+| RN-03 | `Status` must be one of the string values `'Todo'`, `'InProgress'`, or `'Done'`. Invalid values cause a domain exception mapped to HTTP 400. |
+| RN-04 | A user can only view, update, or delete tasks where `OwnerUserId` matches the authenticated user's `Id` extracted from the JWT `sub` claim. Ownership is enforced at the service layer. |
+| RN-05 | Deletion is a hard delete (MVP decision). No soft-delete or recycle bin is implemented. |
+| RN-06 | All task operations (Create, Update, Delete) require a valid JWT Bearer token. Unauthenticated requests return HTTP 401. |
+| RN-07 | Every Create, Update, and Delete operation writes an audit record to the `Audits` table (see HU-03) capturing `OldValues` and `NewValues` as JSON. |
 
 **Acceptance Criteria (Gherkin)**
 
 ```gherkin
 Scenario 1 — Create a new task
   Given the user is authenticated with a valid JWT token
-  When the user sends a POST request to /api/tasks with title "Review PR", description "Check unit tests", status "Todo", and dueDate "2026-04-20"
-  Then the system should create the task and return HTTP 201 with the task details
-  And the task's UserId must match the authenticated user's ID
+  When the user sends POST /api/tasks with body { "title": "Review PR", "description": "Check unit tests", "dueDate": "2026-04-20" }
+  Then the system returns HTTP 201 with the created task
+  And the response body includes an "id" and "ownerUserId" matching the authenticated user
+  And the "status" field equals "Todo"
 
 Scenario 2 — List only own tasks
   Given the user is authenticated
-  And there are tasks belonging to the user and tasks belonging to other users
-  When the user sends a GET request to /api/tasks
-  Then the system should return only tasks where UserId matches the authenticated user
-  And tasks from other users must NOT be visible
+  And the database contains tasks belonging to different users
+  When the user sends GET /api/tasks
+  Then the system returns only tasks where OwnerUserId matches the current user
+  And tasks from other users are NOT included in the response
 
 Scenario 3 — Update a task
   Given the user is authenticated and owns task with Id "abc-123"
-  When the user sends a PUT request to /api/tasks/abc-123 with updated title "Review PR v2"
-  Then the system should update the task and return HTTP 200
-  And the UpdatedAt field must reflect the current UTC time
+  When the user sends PUT /api/tasks/abc-123 with body { "title": "Review PR v2", "description": "", "status": "InProgress", "dueDate": null }
+  Then the system returns HTTP 200 with the updated task
+  And the "status" field in the response equals "InProgress"
 
-Scenario 4 — Prevent updating another user's task
+Scenario 4 — Prevent accessing another user's task
   Given the user is authenticated
-  And task with Id "xyz-789" belongs to a different user
-  When the user sends a PUT request to /api/tasks/xyz-789
-  Then the system should return HTTP 403 Forbidden
+  And task "xyz-789" belongs to a different user
+  When the user sends GET or PUT or DELETE on /api/tasks/xyz-789
+  Then the system returns HTTP 404 (task not found for this owner)
 
 Scenario 5 — Delete a task
   Given the user is authenticated and owns task with Id "abc-123"
-  When the user sends a DELETE request to /api/tasks/abc-123
-  Then the system should delete the task and return HTTP 204
+  When the user sends DELETE /api/tasks/abc-123
+  Then the system returns HTTP 204 No Content
+  And the task no longer exists in the database
 
-Scenario 6 — Validation errors on create
+Scenario 6 — Validation error on empty title
   Given the user is authenticated
-  When the user sends a POST request to /api/tasks with an empty title
-  Then the system should return HTTP 400 with validation error "Title is required"
+  When the user sends POST /api/tasks with an empty "title" field
+  Then the system returns HTTP 400 with an error message indicating the title is required
 
-Scenario 7 — Due date validation
-  Given the user is authenticated
-  When the user sends a POST request to /api/tasks with dueDate "2020-01-01" (past date)
-  Then the system should return HTTP 400 with validation error "DueDate must be today or in the future"
+Scenario 7 — Unauthenticated access is rejected
+  Given no Authorization header is included in the request
+  When the user sends GET /api/tasks
+  Then the system returns HTTP 401 Unauthorized
 ```
 
 ---
@@ -148,73 +160,247 @@ Scenario 7 — Due date validation
 #### HU-02: User Authentication & Registration
 
 **Process:** Identity & Access Management  
-**Subprocess:** User Registration and JWT Authentication  
+**Subprocess:** User Registration, JWT Authentication, Sign-out, and Profile Access  
 
-**As a:** Visitor (unauthenticated)  
-**I want to:** Register a new account and log in to receive a JWT token  
+**As a:** Visitor (unauthenticated) or registered user  
+**I want to:** Register a new account, log in to receive a JWT token, and access my profile  
 **So that:** I can access protected endpoints and manage my tasks securely  
 
 **Functional Description**
 
-The system must provide an authentication module with registration and login endpoints. User passwords must be hashed using BCrypt before storage — plaintext passwords must never be persisted or logged. On successful login, the system issues a JWT Bearer token containing the user's ID and username as claims. The token must have a configurable expiration.
+The system provides an authentication module with registration, login, sign-out, and profile endpoints. Passwords are hashed using **PBKDF2/SHA-256** (100,000 iterations, 256-bit random salt per user) — plaintext passwords are never persisted, logged, or transmitted. On successful login, the system issues a signed JWT Bearer token (HS256) containing the user's ID, username, and role as claims. Sign-out writes an audit record. Profile endpoints expose non-sensitive user data.
 
-**Data Model — User Entity**
+**Data Model — User Entity** *(source of truth: `sql/migrations/0001_init.sql`)*
 
 | # | Field | Type | Description |
 |---|-------|------|-------------|
-| 1 | `Id` | UNIQUEIDENTIFIER (PK) | System-generated unique identifier |
-| 2 | `Username` | NVARCHAR(100), NOT NULL, UNIQUE | User's display name and login identifier |
-| 3 | `Email` | NVARCHAR(200), NOT NULL, UNIQUE | User's email address |
-| 4 | `PasswordHash` | NVARCHAR(500), NOT NULL | BCrypt hash of the password |
-| 5 | `CreatedAt` | DATETIME2 | Auto-generated on registration (UTC) |
+| 1 | `Id` | `UNIQUEIDENTIFIER` PK, `DEFAULT NEWID()` | System-generated unique identifier |
+| 2 | `Username` | `NVARCHAR(100) NOT NULL UNIQUE` | User's display name and login identifier |
+| 3 | `Email` | `NVARCHAR(320) NOT NULL UNIQUE` | User's email address |
+| 4 | `PasswordHash` | `NVARCHAR(512) NOT NULL` | PBKDF2/SHA-256 derived key (Base64) |
+| 5 | `Salt` | `NVARCHAR(128) NOT NULL` | Per-user random salt (Base64, 256-bit) — stored separately from hash |
+| 6 | `Role` | `NVARCHAR(50) NOT NULL DEFAULT 'User'` | Access role — values: `'User'`, `'Admin'` |
+
+**API Endpoints**
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| `POST` | `/api/auth/register` | Public | Register a new user account |
+| `POST` | `/api/auth/login` | Public | Authenticate and receive JWT token |
+| `POST` | `/api/auth/signout` | JWT | Record sign-out audit event, return 204 |
+| `GET` | `/api/users/{id}` | Public | Get public user summary by id (no sensitive fields) |
+| `GET` | `/api/users/me` | JWT | Get the authenticated user's own profile |
+
+**DTOs**
+
+- `RegisterRequest`: `Username`, `Email`, `Password`.
+- `LoginRequest`: `Username`, `Password`.
+- `LoginResponse` (success): `Token` (JWT string), `Username`, `Role`.
+- `UserDto` (profile): `Id`, `Username`, `Email`, `Role`.
 
 **Business Rules**
 
 | Code | Rule |
 |------|------|
-| RN-08 | `Username` must be unique, between 3 and 100 characters, alphanumeric. |
-| RN-09 | `Email` must be unique and in valid email format. |
-| RN-10 | Password must meet minimum strength: at least 8 characters, one uppercase, one number. |
-| RN-11 | Passwords must be hashed with BCrypt before storage. Plaintext passwords must never be stored or logged. |
-| RN-12 | Login must validate credentials and return a JWT token on success, or HTTP 401 on failure. Error messages must not reveal whether the username or password was incorrect (security best practice). |
-| RN-13 | JWT tokens must include `UserId` and `Username` claims, with a configurable expiration (default: 60 minutes). |
-| RN-14 | Non-authorized endpoints (e.g., `GET /api/tasks/public/stats`) must be accessible without authentication. |
+| RN-08 | `Username` must be unique across all users. Duplicate usernames are rejected with HTTP 400. |
+| RN-09 | `Email` must be a syntactically valid email address (enforced by `Email.Create` value object). |
+| RN-10 | `Password` must be at least 8 characters. Additional strength requirements (uppercase, digit) are enforced at the application service layer. |
+| RN-11 | Passwords are hashed with **PBKDF2/SHA-256** (100,000 iterations, 256-bit salt, 256-bit output) before storage. Plaintext passwords are never stored, logged, or returned. Timing-safe comparison (`CryptographicOperations.FixedTimeEquals`) prevents timing attacks. |
+| RN-12 | Login validates credentials and returns a signed JWT on success (HTTP 200), or HTTP 401 on failure. Error messages are generic ("Invalid username or password") and do not reveal whether the username or password was wrong (OWASP A07). |
+| RN-13 | JWT tokens (HS256) include `sub` (UserId), `unique_name` (Username), and `role` (Role) claims. Default expiration: 60 minutes (configurable via `Jwt:ExpiryMinutes`). |
+| RN-14 | `GET /api/users/{id}` is publicly accessible without authentication. It returns only non-sensitive fields (`Id`, `Username`, `Email`, `Role`). Password hash and salt are never returned. |
+| RN-15 | `POST /api/auth/signout` requires a valid JWT. It writes an audit record (`Action = 'SignedOut'`) and returns HTTP 204. Audit failures are swallowed — they must not block sign-out. |
 
 **Acceptance Criteria (Gherkin)**
 
 ```gherkin
 Scenario 1 — Register a new user
-  Given a visitor sends a POST request to /api/auth/register with username "arturo", email "arturo@mail.com", and password "Secure123"
-  When the system processes the registration
-  Then the system should create the user and return HTTP 201
-  And the password stored in the database must be a BCrypt hash, not plaintext
+  Given a visitor sends POST /api/auth/register with { "username": "arturo", "email": "arturo@mail.com", "password": "Secure123" }
+  When the system processes the request
+  Then it returns HTTP 201 with a UserDto containing Id, Username, Email, Role
+  And the Users table stores a PBKDF2 hash and a unique salt — no plaintext password
 
 Scenario 2 — Prevent duplicate registration
   Given a user with username "arturo" already exists
-  When a visitor sends a POST request to /api/auth/register with the same username
-  Then the system should return HTTP 409 Conflict
+  When a visitor sends POST /api/auth/register with the same username
+  Then the system returns HTTP 400 with an error indicating the username is taken
 
 Scenario 3 — Login with valid credentials
   Given a registered user with username "arturo" and password "Secure123"
-  When the user sends a POST request to /api/auth/login with correct credentials
-  Then the system should return HTTP 200 with a valid JWT token
-  And the token must contain UserId and Username claims
+  When the user sends POST /api/auth/login with correct credentials
+  Then the system returns HTTP 200 with a LoginResponse containing Token, Username, and Role
+  And the Token is a well-formed JWT containing sub, unique_name, and role claims
 
 Scenario 4 — Login with invalid credentials
   Given a registered user with username "arturo"
-  When the user sends a POST request to /api/auth/login with incorrect password
-  Then the system should return HTTP 401 Unauthorized
-  And the error message must not reveal whether the username or password was wrong
+  When the user sends POST /api/auth/login with the wrong password
+  Then the system returns HTTP 401 Unauthorized
+  And the error message does NOT reveal whether the username or password was wrong
 
 Scenario 5 — Access protected endpoint without token
-  Given the user does NOT include an Authorization header
-  When the user sends a GET request to /api/tasks
-  Then the system should return HTTP 401 Unauthorized
+  Given no Authorization header is included
+  When the user sends GET /api/tasks
+  Then the system returns HTTP 401 Unauthorized
 
-Scenario 6 — Access public endpoint without token
-  Given the user does NOT include an Authorization header
-  When the user sends a GET request to /api/tasks/public/stats
-  Then the system should return HTTP 200 with public data
+Scenario 6 — Access public user profile without token
+  Given no Authorization header is included
+  When the user sends GET /api/users/{id} with a valid user id
+  Then the system returns HTTP 200 with the public UserDto (no password fields)
+
+Scenario 7 — Sign out records an audit entry
+  Given the user is authenticated with a valid JWT
+  When the user sends POST /api/auth/signout
+  Then the system returns HTTP 204 No Content
+  And an Audits row is written with Entity = 'Users', Action = 'SignedOut'
+
+Scenario 8 — Get own profile
+  Given the user is authenticated
+  When the user sends GET /api/users/me
+  Then the system returns HTTP 200 with the user's own UserDto
+```
+
+---
+
+#### HU-03: Audit Trail
+
+**Process:** Observability & Compliance  
+**Subprocess:** Change Recording and Audit Log Access  
+
+**As a:** Authenticated user (or Admin)  
+**I want to:** View a paginated, filterable log of all create / update / delete / sign-out operations  
+**So that:** I can trace who did what and when, supporting accountability and debugging  
+
+**Functional Description**
+
+The system instruments all mutating operations (task create/update/delete, user registration, sign-out) with automatic write-side audit entries. Each entry captures the entity type, entity id, action, the acting user, and JSON snapshots of the state before and after the change. A read API exposes this trail with server-side pagination and filtering, plus a metadata endpoint that returns distinct entity types, action types, and server timezone info (useful when clients need to reconcile timestamps).
+
+**Data Model — Audit Entity** *(source of truth: `sql/migrations/0003_audit.sql`)*
+
+| # | Field | Type | Description |
+|---|-------|------|-------------|
+| 1 | `Id` | `UNIQUEIDENTIFIER` PK, `DEFAULT NEWID()` | System-generated row identifier |
+| 2 | `Entity` | `NVARCHAR(100) NOT NULL` | Domain entity type — e.g., `'Tasks'`, `'Users'` |
+| 3 | `EntityId` | `NVARCHAR(100) NOT NULL` | String representation of the entity's primary key |
+| 4 | `Action` | `NVARCHAR(50) NOT NULL` | Operation — `'Created'`, `'Updated'`, `'Deleted'`, `'SignedOut'` |
+| 5 | `UserId` | `UNIQUEIDENTIFIER NULL` | Id of the user who performed the action (null if system) |
+| 6 | `Username` | `NVARCHAR(200) NULL` | Username at the time of the action |
+| 7 | `OldValues` | `NVARCHAR(MAX) NULL` | JSON snapshot of the entity state before the change (null for Creates) |
+| 8 | `NewValues` | `NVARCHAR(MAX) NULL` | JSON snapshot of the entity state after the change (null for Deletes) |
+| 9 | `CreatedAt` | `DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()` | UTC timestamp recorded by the server |
+
+**Write Instrumentation — where audit entries are created**
+
+| Operation | Controller / Service | Action value |
+|-----------|---------------------|--------------|
+| Task created | `TasksController.Create` | `'Created'` |
+| Task updated | `TasksController.Update` | `'Updated'` |
+| Task deleted | `TasksController.Delete` | `'Deleted'` |
+| User registered | `AuthService.RegisterAsync` | `'Created'` |
+| User signed out | `AuthController.Signout` | `'SignedOut'` |
+
+**API Endpoints**
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| `GET` | `/api/audit` | JWT | Paginated, filterable audit log |
+| `GET` | `/api/audit/meta` | JWT | Distinct entity types, action types, and server timezone info |
+
+**Query Parameters for `GET /api/audit`**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | `int` | `1` | Page number (1-based) |
+| `pageSize` | `int` | `10` | Records per page |
+| `entity` | `string?` | — | Filter by entity type (e.g., `'Tasks'`) |
+| `action` | `string?` | — | Filter by action (e.g., `'Deleted'`) |
+| `q` | `string?` | — | Free-text search on Entity, Username, EntityId |
+
+**Response — `PagedResult<AuditDto>`**
+
+```json
+{
+  "items": [
+    {
+      "id": "...",
+      "entity": "Tasks",
+      "entityId": "...",
+      "action": "Created",
+      "userId": "...",
+      "username": "demo",
+      "oldValues": null,
+      "newValues": "{ \"id\": \"...\", \"title\": \"Review PR\", ... }",
+      "createdAt": "2026-04-12T18:00:00Z"
+    }
+  ],
+  "totalCount": 42,
+  "page": 1,
+  "pageSize": 10
+}
+```
+
+**Business Rules**
+
+| Code | Rule |
+|------|------|
+| RN-16 | All audit read endpoints require a valid JWT Bearer token. Unauthenticated requests return HTTP 401. |
+| RN-17 | Audit entries are immutable — no update or delete endpoints are exposed. |
+| RN-18 | `OldValues` is `null` for Create operations. `NewValues` is `null` for Delete operations. Both are JSON strings for Update operations. |
+| RN-19 | Sensitive fields (passwords, salts, tokens) must never appear in `OldValues` or `NewValues`. The audit layer captures DTO-level snapshots, not raw entity objects. |
+| RN-20 | Audit write failures must not block the primary operation (create/update/delete/signout). Exceptions from `InsertAsync` are swallowed at the call site. |
+| RN-21 | Server-side pagination (`OFFSET … FETCH NEXT`) is used; the client receives `totalCount`, `page`, and `pageSize` to calculate total pages. |
+| RN-22 | The `GET /api/audit/meta` endpoint returns the distinct list of entity types and action types currently stored, plus server timezone metadata (`timezone`, `offset`, `localNow`) to help clients display timestamps in context. |
+
+**Acceptance Criteria (Gherkin)**
+
+```gherkin
+Scenario 1 — Task creation is audited
+  Given the user is authenticated
+  When the user sends POST /api/tasks with a valid body
+  Then the system creates the task and returns HTTP 201
+  And a row is written to Audits with Entity = 'Tasks', Action = 'Created', OldValues = null, NewValues = JSON of the task
+
+Scenario 2 — Task update is audited with before/after
+  Given the user is authenticated and owns task "abc-123"
+  When the user sends PUT /api/tasks/abc-123 with an updated title
+  Then the system returns HTTP 200
+  And an Audits row is written with Action = 'Updated', OldValues = JSON of old task, NewValues = JSON of updated task
+
+Scenario 3 — Task deletion is audited
+  Given the user is authenticated and owns task "abc-123"
+  When the user sends DELETE /api/tasks/abc-123
+  Then the system returns HTTP 204
+  And an Audits row is written with Action = 'Deleted', OldValues = JSON of deleted task, NewValues = null
+
+Scenario 4 — Paginated audit log access
+  Given the user is authenticated and audit entries exist
+  When the user sends GET /api/audit?page=1&pageSize=10
+  Then the system returns HTTP 200 with a PagedResult containing items, totalCount, page, pageSize
+
+Scenario 5 — Filtered audit log
+  Given the user is authenticated
+  When the user sends GET /api/audit?entity=Tasks&action=Deleted
+  Then the system returns only Audits rows where Entity = 'Tasks' AND Action = 'Deleted'
+
+Scenario 6 — Free-text search
+  Given the user is authenticated
+  When the user sends GET /api/audit?q=demo
+  Then the system returns Audits rows where Username, Entity, or EntityId contains "demo"
+
+Scenario 7 — Audit metadata endpoint
+  Given the user is authenticated
+  When the user sends GET /api/audit/meta
+  Then the system returns HTTP 200 with a list of distinct entities, a list of distinct actions, and server timezone info
+
+Scenario 8 — Unauthenticated access is rejected
+  Given no Authorization header is included
+  When the user sends GET /api/audit
+  Then the system returns HTTP 401 Unauthorized
+
+Scenario 9 — Audit failures do not block primary operations
+  Given the audit repository throws an exception on InsertAsync
+  When the user creates, updates, or deletes a task
+  Then the primary operation still succeeds (HTTP 201 / 200 / 204)
+  And no error is surfaced to the client
 ```
 
 ---
